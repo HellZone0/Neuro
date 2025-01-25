@@ -1,0 +1,15 @@
+{
+  "security": {
+    "password": "fahriali",
+    "users": [
+      {
+        "username": "selz",
+        "phoneNumber": "+6281290467734"
+      },
+      {
+        "username": "admin",
+        "phoneNumber": "+6281234567890"
+      }
+    ]
+  }
+}
