@@ -1,5 +1,5 @@
 -- GUI menggunakan Kavo‑style (Atlas)
-local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Chris12089/atlasbss/main/script.lua"))()
 local Window = library.CreateLib("Zone Bee Swarm Script", "Ocean")
 
 local Player = game.Players.LocalPlayer
