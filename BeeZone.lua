@@ -1,4 +1,3 @@
--- Bee Swarm Simulator GUI (Full Version) by ChatGPT
 
 -- Load Kavo UI
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
@@ -101,6 +100,40 @@ task.delay(1, function()
                     v.Draggable = true
                 end)
             end
+        end
+    end
+end)
+
+-- 🔽 Tambahkan tombol minimize ke GUI
+task.delay(1, function()
+    local gui = game:GetService("CoreGui"):FindFirstChild("KavoUI")
+    if gui then
+        local frame = gui:FindFirstChildWhichIsA("Frame")
+        if frame then
+            local minimizeBtn = Instance.new("TextButton")
+            minimizeBtn.Name = "MinimizeButton"
+            minimizeBtn.Parent = frame
+            minimizeBtn.Text = "🔽"
+            minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+            minimizeBtn.Position = UDim2.new(1, -35, 0, 5)
+            minimizeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+            minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
+            minimizeBtn.BorderSizePixel = 0
+            minimizeBtn.Font = Enum.Font.SourceSansBold
+            minimizeBtn.TextSize = 18
+            minimizeBtn.ZIndex = 999
+
+            local minimized = false
+
+            minimizeBtn.MouseButton1Click:Connect(function()
+                minimized = not minimized
+                for _, v in pairs(frame:GetChildren()) do
+                    if v:IsA("Frame") and v.Name ~= minimizeBtn.Name then
+                        v.Visible = not minimized
+                    end
+                end
+                minimizeBtn.Text = minimized and "🔼" or "🔽"
+            end)
         end
     end
 end)
