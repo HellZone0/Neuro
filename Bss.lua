@@ -1,140 +1,119 @@
--- Bee Swarm Simulator GUI (Full Version) by ChatGPT
+-- Expedition Antarctica Utility Script
+-- UI + Speed & Jump Control
 
--- Load Kavo UI
-local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = library.CreateLib("Bee Swarm Script", "Ocean")
+-- Instances
+local player = game.Players.LocalPlayer
+local char = player.Character or player.CharacterAdded:Wait()
+local humanoid = char:WaitForChild("Humanoid")
 
--- Services & Setup
-local Player = game.Players.LocalPlayer
-local chr = Player.Character or Player.CharacterAdded:Wait()
-local Humanoid = chr:WaitForChild("Humanoid")
-local VirtualInput = game:GetService("VirtualInputManager")
+-- Create UI
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "EA_UI"
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 250, 0, 180)
+MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local UICorner = Instance.new("UICorner", MainFrame)
+UICorner.CornerRadius = UDim.new(0, 10)
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Text = "❄ Expedition Trainer"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+
+-- Speed Slider
+local speedLabel = Instance.new("TextLabel", MainFrame)
+speedLabel.Position = UDim2.new(0, 10, 0, 40)
+speedLabel.Size = UDim2.new(0, 200, 0, 20)
+speedLabel.Text = "Speed: 16"
+speedLabel.TextColor3 = Color3.new(1,1,1)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = 14
+
+local speedBox = Instance.new("TextBox", MainFrame)
+speedBox.Position = UDim2.new(0, 10, 0, 60)
+speedBox.Size = UDim2.new(0, 230, 0, 25)
+speedBox.Text = "16"
+speedBox.Font = Enum.Font.Gotham
+speedBox.TextSize = 14
+speedBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+speedBox.TextColor3 = Color3.new(1,1,1)
+speedBox.ClearTextOnFocus = false
+
+-- JumpPower
+local jumpLabel = Instance.new("TextLabel", MainFrame)
+jumpLabel.Position = UDim2.new(0, 10, 0, 90)
+jumpLabel.Size = UDim2.new(0, 200, 0, 20)
+jumpLabel.Text = "Jump Height: 50"
+jumpLabel.TextColor3 = Color3.new(1,1,1)
+jumpLabel.BackgroundTransparency = 1
+jumpLabel.Font = Enum.Font.Gotham
+jumpLabel.TextSize = 14
+
+local jumpBox = Instance.new("TextBox", MainFrame)
+jumpBox.Position = UDim2.new(0, 10, 0, 110)
+jumpBox.Size = UDim2.new(0, 230, 0, 25)
+jumpBox.Text = "50"
+jumpBox.Font = Enum.Font.Gotham
+jumpBox.TextSize = 14
+jumpBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+jumpBox.TextColor3 = Color3.new(1,1,1)
+jumpBox.ClearTextOnFocus = false
+
+-- Hide / Minimize Button
+local toggleBtn = Instance.new("TextButton", MainFrame)
+toggleBtn.Position = UDim2.new(1, -30, 0, 5)
+toggleBtn.Size = UDim2.new(0, 25, 0, 20)
+toggleBtn.Text = "-"
+toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+toggleBtn.TextColor3 = Color3.new(1,1,1)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 14
+local minimized = false
+
+-- Hide/Show keybind
 local UIS = game:GetService("UserInputService")
+local hidden = false
 
--- Variabel Global
-getgenv().selectedField = "Sunflower Field"
-getgenv().autoFarm = false
-getgenv().autoConvert = false
-getgenv().walkDelay = 1
-
--- 🐝 Tab Farming
-local farmTab = Window:NewTab("Farming")
-local farmSection = farmTab:NewSection("Auto Farming")
-
-farmSection:NewDropdown("Select Field", "Pilih field yang ingin difarm", {
-    "Sunflower Field", "Dandelion Field", "Mushroom Field",
-    "Blue Flower Field", "Clover Field", "Spider Field",
-    "Strawberry Field", "Bamboo Field", "Pumpkin Patch"
-}, function(field)
-    getgenv().selectedField = field
-end)
-
-farmSection:NewSlider("Delay Gerak (detik)", "Atur kecepatan gerak saat farming", 5, 0.2, 1, function(value)
-    getgenv().walkDelay = value
-end)
-
-farmSection:NewToggle("Auto Farm (Natural)", "Karakter bergerak & farming otomatis", function(state)
-    getgenv().autoFarm = state
-
-    task.spawn(function()
-        while getgenv().autoFarm do
-            local field = workspace.FlowerZones:FindFirstChild(getgenv().selectedField)
-            if not field then break end
-
-            -- Pindah ke tengah field
-            Humanoid:MoveTo(field.Position)
-            Humanoid.MoveToFinished:Wait()
-            wait(1)
-
-            -- Mulai loop gerak + tool
-            while getgenv().autoFarm do
-                local offset = {
-                    Vector3.new(5, 0, 0), Vector3.new(-5, 0, 0),
-                    Vector3.new(0, 0, 5), Vector3.new(0, 0, -5)
-                }
-                local dir = offset[math.random(1, #offset)]
-                local newPos = chr.HumanoidRootPart.Position + dir
-                Humanoid:MoveTo(newPos)
-                Humanoid.MoveToFinished:Wait()
-
-                -- Aktifkan tool farming
-                local tool = chr:FindFirstChildWhichIsA("Tool")
-                if tool then
-                    pcall(function() tool:Activate() end)
-                end
-
-                wait(getgenv().walkDelay)
-            end
-        end
-    end)
-end)
-
-farmSection:NewToggle("Auto Convert", "Pergi otomatis ke hive", function(state)
-    getgenv().autoConvert = state
-
-    task.spawn(function()
-        while getgenv().autoConvert do
-            local hive = workspace.Honeycombs:FindFirstChild(Player.Name)
-            if hive then
-                Humanoid:MoveTo(hive.Position)
-            end
-            wait(5)
-        end
-    end)
-end)
-
--- 🎛️ Toggle GUI pakai tombol INSERT
 UIS.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.Insert then
-        library:ToggleUI()
-    end
+	if input.KeyCode == Enum.KeyCode.RightControl then
+		hidden = not hidden
+		ScreenGui.Enabled = not hidden
+	end
 end)
 
--- 🛠 Patch GUI agar bisa di-drag (force aktif)
-task.delay(1, function()
-    local gui = game:GetService("CoreGui"):FindFirstChild("KavoUI")
-    if gui then
-        for _,v in pairs(gui:GetDescendants()) do
-            if v:IsA("Frame") or v:IsA("TextButton") then
-                pcall(function()
-                    v.Active = true
-                    v.Draggable = true
-                end)
-            end
-        end
-    end
+-- Functionality
+speedBox.FocusLost:Connect(function()
+	local speed = tonumber(speedBox.Text)
+	if speed then
+		humanoid.WalkSpeed = speed
+		speedLabel.Text = "Speed: " .. speed
+	end
 end)
 
--- 🔽 Tambahkan tombol minimize ke GUI
-task.delay(1, function()
-    local gui = game:GetService("CoreGui"):FindFirstChild("KavoUI")
-    if gui then
-        local frame = gui:FindFirstChildWhichIsA("Frame")
-        if frame then
-            local minimizeBtn = Instance.new("TextButton")
-            minimizeBtn.Name = "MinimizeButton"
-            minimizeBtn.Parent = frame
-            minimizeBtn.Text = "🔽"
-            minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-            minimizeBtn.Position = UDim2.new(1, -35, 0, 5)
-            minimizeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-            minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
-            minimizeBtn.BorderSizePixel = 0
-            minimizeBtn.Font = Enum.Font.SourceSansBold
-            minimizeBtn.TextSize = 18
-            minimizeBtn.ZIndex = 999
+jumpBox.FocusLost:Connect(function()
+	local jump = tonumber(jumpBox.Text)
+	if jump then
+		humanoid.JumpPower = jump
+		jumpLabel.Text = "Jump Height: " .. jump
+	end
+end)
 
-            local minimized = false
-
-            minimizeBtn.MouseButton1Click:Connect(function()
-                minimized = not minimized
-                for _, v in pairs(frame:GetChildren()) do
-                    if v:IsA("Frame") and v.Name ~= minimizeBtn.Name then
-                        v.Visible = not minimized
-                    end
-                end
-                minimizeBtn.Text = minimized and "🔼" or "🔽"
-            end)
-        end
-    end
+toggleBtn.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	for _, child in ipairs(MainFrame:GetChildren()) do
+		if child:IsA("TextLabel") or child:IsA("TextBox") then
+			child.Visible = not minimized
+		end
+	end
+	toggleBtn.Text = minimized and "+" or "-"
 end)
