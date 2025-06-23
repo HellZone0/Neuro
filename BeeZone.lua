@@ -1,14 +1,15 @@
+-- Bee Swarm Simulator GUI (Full Version) by ChatGPT
 
--- Load GUI Library
+-- Load Kavo UI
 local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = library.CreateLib("Zone Bee Swarm Script", "Ocean")
+local Window = library.CreateLib("Bee Swarm Script", "Ocean")
 
 -- Services & Setup
 local Player = game.Players.LocalPlayer
 local chr = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = chr:WaitForChild("Humanoid")
 local VirtualInput = game:GetService("VirtualInputManager")
-local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 
 -- Variabel Global
 getgenv().selectedField = "Sunflower Field"
@@ -38,39 +39,43 @@ farmSection:NewToggle("Auto Farm (Natural)", "Karakter bergerak & farming otomat
     task.spawn(function()
         while getgenv().autoFarm do
             local field = workspace.FlowerZones:FindFirstChild(getgenv().selectedField)
-            if field and chr and Humanoid then
-                -- Pergi ke field dulu
-                Humanoid:MoveTo(field.Position)
-                wait(3)
+            if not field then break end
 
-                while getgenv().autoFarm do
-                    local moveOffset = {
-                        Vector3.new(5, 0, 0), Vector3.new(-5, 0, 0),
-                        Vector3.new(0, 0, 5), Vector3.new(0, 0, -5)
-                    }
-                    local direction = moveOffset[math.random(1, #moveOffset)]
-                    local newPosition = chr.HumanoidRootPart.Position + direction
-                    Humanoid:MoveTo(newPosition)
-
-                    -- Simulasi klik (untuk tool dig)
-                    VirtualInput:SendMouseButtonEvent(500, 500, 0, true, game, 1)
-                    wait(0.1)
-                    VirtualInput:SendMouseButtonEvent(500, 500, 0, false, game, 1)
-
-                    wait(getgenv().walkDelay)
-                end
-            end
+            -- Pindah ke tengah field
+            Humanoid:MoveTo(field.Position)
+            Humanoid.MoveToFinished:Wait()
             wait(1)
+
+            -- Mulai loop gerak + tool
+            while getgenv().autoFarm do
+                local offset = {
+                    Vector3.new(5, 0, 0), Vector3.new(-5, 0, 0),
+                    Vector3.new(0, 0, 5), Vector3.new(0, 0, -5)
+                }
+                local dir = offset[math.random(1, #offset)]
+                local newPos = chr.HumanoidRootPart.Position + dir
+                Humanoid:MoveTo(newPos)
+                Humanoid.MoveToFinished:Wait()
+
+                -- Aktifkan tool farming
+                local tool = chr:FindFirstChildWhichIsA("Tool")
+                if tool then
+                    pcall(function() tool:Activate() end)
+                end
+
+                wait(getgenv().walkDelay)
+            end
         end
     end)
 end)
 
 farmSection:NewToggle("Auto Convert", "Pergi otomatis ke hive", function(state)
     getgenv().autoConvert = state
+
     task.spawn(function()
         while getgenv().autoConvert do
             local hive = workspace.Honeycombs:FindFirstChild(Player.Name)
-            if hive and chr and Humanoid then
+            if hive then
                 Humanoid:MoveTo(hive.Position)
             end
             wait(5)
@@ -78,10 +83,24 @@ farmSection:NewToggle("Auto Convert", "Pergi otomatis ke hive", function(state)
     end)
 end)
 
--- 📜 Toggle GUI pakai tombol INSERT
-local UIS = game:GetService("UserInputService")
+-- 🎛️ Toggle GUI pakai tombol INSERT
 UIS.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.Insert then
         library:ToggleUI()
+    end
+end)
+
+-- 🛠 Patch GUI agar bisa di-drag (force aktif)
+task.delay(1, function()
+    local gui = game:GetService("CoreGui"):FindFirstChild("KavoUI")
+    if gui then
+        for _,v in pairs(gui:GetDescendants()) do
+            if v:IsA("Frame") or v:IsA("TextButton") then
+                pcall(function()
+                    v.Active = true
+                    v.Draggable = true
+                end)
+            end
+        end
     end
 end)
