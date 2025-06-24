@@ -40,6 +40,17 @@ toggleBtn.Font = Enum.Font.GothamBold
 toggleBtn.TextSize = 14
 Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 4)
 
+-- 🔹 FPS Display
+local fpsLabel = Instance.new("TextLabel", MainFrame)
+fpsLabel.Size = UDim2.new(0, 80, 0, 20)
+fpsLabel.Position = UDim2.new(1, -110, 0, 5) -- Diatur supaya di samping kiri toggleBtn
+fpsLabel.BackgroundTransparency = 1
+fpsLabel.TextColor3 = Color3.fromRGB(180, 230, 255)
+fpsLabel.Font = Enum.Font.GothamSemibold
+fpsLabel.TextSize = 14
+fpsLabel.TextXAlignment = Enum.TextXAlignment.Right
+fpsLabel.Text = "FPS: 0"
+
 local contentFrame = Instance.new("Frame", MainFrame)
 contentFrame.Name = "ContentFrame"
 contentFrame.Position = UDim2.new(0, 0, 0, 35)
@@ -212,6 +223,24 @@ createToggleButton("GodMode", 130, "🛡️ God Mode: ON", "🛡️ God Mode: OF
 			godConnection:Disconnect()
 			godConnection = nil
 		end
+	end
+end)
+
+-- 🔹 FPS Calculation
+local RunService = game:GetService("RunService")
+local fps = 0
+local frameCount = 0
+local lastTime = tick()
+
+RunService.RenderStepped:Connect(function()
+	frameCount += 1
+	local now = tick()
+
+	if now - lastTime >= 1 then
+		fps = frameCount
+		frameCount = 0
+		lastTime = now
+		fpsLabel.Text = "FPS: " .. tostring(fps)
 	end
 end)
 
