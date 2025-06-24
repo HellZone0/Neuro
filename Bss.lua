@@ -178,19 +178,25 @@ task.spawn(function()
 end)
 
 -- God Mode
+local godConnection
 local godMode = false
 createToggleButton("GodMode", 130, "🛡️ God Mode: ON", "🛡️ God Mode: OFF", function(state)
-	godMode = state
-	if godMode then
-		task.spawn(function()
-			while godMode do
-				local char = player.Character or player.CharacterAdded:Wait()
-				local hum = char:FindFirstChildOfClass("Humanoid")
-				if hum and hum.Health < hum.MaxHealth then
-					hum.Health = hum.MaxHealth
-				end
-				task.wait(0.1)
-			end
-		end)
-	end
+    godMode = state
+
+    if godMode then
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hum = char:WaitForChild("Humanoid")
+
+        -- Jaga agar darah selalu max dan tidak turun
+        godConnection = hum:GetPropertyChangedSignal("Health"):Connect(function()
+            if hum.Health < hum.MaxHealth then
+                hum.Health = hum.MaxHealth
+            end
+        end)
+    else
+        if godConnection then
+            godConnection:Disconnect()
+            godConnection = nil
+        end
+    end
 end)
