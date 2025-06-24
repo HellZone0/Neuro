@@ -1,4 +1,4 @@
--- Expedition Antarctica Stylish UI Script
+-- Expedition Antarctica Stylish UI Script with God Mode
 
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
@@ -9,7 +9,7 @@ local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 ScreenGui.Name = "EA_StylishUI"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 270, 0, 170)
+MainFrame.Size = UDim2.new(0, 270, 0, 210)
 MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
 MainFrame.BorderSizePixel = 0
@@ -34,7 +34,7 @@ UICorner.CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, -40, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Text = "❄ Expedition Trainer"
+Title.Text = "❄️ Zone Expedition Trainer"
 Title.TextColor3 = Color3.fromRGB(180, 230, 255)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamSemibold
@@ -69,7 +69,7 @@ contentFrame.Position = UDim2.new(0, 0, 0, 35)
 contentFrame.Size = UDim2.new(1, 0, 1, -35)
 contentFrame.BackgroundTransparency = 1
 
--- Function for styled TextBox
+-- Styled input function
 local function createInput(labelText, posY, defaultText)
 	local label = Instance.new("TextLabel", contentFrame)
 	label.Position = UDim2.new(0, 10, 0, posY)
@@ -108,7 +108,7 @@ end
 local speedBox = createInput("Speed:", 10, tostring(humanoid.WalkSpeed))
 local jumpBox = createInput("Jump:", 50, tostring(humanoid.JumpPower))
 
--- Size toggle logic
+-- Minimize logic
 task.wait()
 local originalSize = MainFrame.Size
 local minimizedSize = UDim2.new(0, 270, 0, 35)
@@ -120,7 +120,7 @@ toggleBtn.MouseButton1Click:Connect(function()
 	MainFrame.Size = minimized and minimizedSize or originalSize
 end)
 
--- RightCtrl toggle
+-- Toggle UI visibility with RightCtrl
 local UIS = game:GetService("UserInputService")
 local hidden = false
 UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -130,7 +130,7 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
 	end
 end)
 
--- Update logic
+-- Update Speed and Jump
 speedBox.FocusLost:Connect(function()
 	local speed = tonumber(speedBox.Text)
 	if speed then
@@ -145,4 +145,36 @@ jumpBox.FocusLost:Connect(function()
 		humanoid.JumpPower = jump
 	end
 	jumpBox.Text = tostring(humanoid.JumpPower)
+end)
+
+-- GOD MODE TOGGLE
+local godButton = Instance.new("TextButton", contentFrame)
+godButton.Position = UDim2.new(0, 10, 0, 90)
+godButton.Size = UDim2.new(0, 230, 0, 30)
+godButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+godButton.TextColor3 = Color3.new(1, 1, 1)
+godButton.Font = Enum.Font.GothamBold
+godButton.TextSize = 14
+godButton.Text = "🛡️ God Mode: OFF"
+godButton.BorderSizePixel = 0
+
+local corner = Instance.new("UICorner", godButton)
+corner.CornerRadius = UDim.new(0, 6)
+
+local godMode = false
+local function keepHealth()
+	while godMode do
+		if humanoid and humanoid.Health < humanoid.MaxHealth then
+			humanoid.Health = humanoid.MaxHealth
+		end
+		task.wait(0.1)
+	end
+end
+
+godButton.MouseButton1Click:Connect(function()
+	godMode = not godMode
+	godButton.Text = godMode and "🛡️ God Mode: ON" or "🛡️ God Mode: OFF"
+	if godMode then
+		task.spawn(keepHealth)
+	end
 end)
