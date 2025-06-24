@@ -123,6 +123,25 @@ jumpBox.FocusLost:Connect(function()
 	jumpBox.Text = tostring(humanoid.JumpPower)
 end)
 
+-- Tombol Reset Speed & Jump
+local resetBtn = Instance.new("TextButton", contentFrame)
+resetBtn.Position = UDim2.new(0, 10, 0, 170)
+resetBtn.Size = UDim2.new(0, 230, 0, 30)
+resetBtn.Text = "🔄 Reset Speed & Jump"
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.TextSize = 14
+resetBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+resetBtn.TextColor3 = Color3.new(1, 1, 1)
+resetBtn.BorderSizePixel = 0
+Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 6)
+
+resetBtn.MouseButton1Click:Connect(function()
+	humanoid.WalkSpeed = 16
+	humanoid.JumpPower = 50
+	speedBox.Text = "16"
+	jumpBox.Text = "50"
+end)
+
 -- Toggle Buttons Builder
 local function createToggleButton(name, posY, onText, offText, callback)
 	local btn = Instance.new("TextButton", contentFrame)
