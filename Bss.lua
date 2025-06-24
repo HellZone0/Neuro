@@ -16,17 +16,6 @@ MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
 
-local shadow = Instance.new("ImageLabel", MainFrame)
-shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
-shadow.Size = UDim2.new(1, 40, 1, 40)
-shadow.BackgroundTransparency = 1
-shadow.Image = "rbxassetid://1316045217"
-shadow.ImageColor3 = Color3.new(0, 0, 0)
-shadow.ImageTransparency = 0.7
-shadow.ScaleType = Enum.ScaleType.Slice
-shadow.SliceCenter = Rect.new(10, 10, 118, 118)
-shadow.ZIndex = 0
 
 local UICorner = Instance.new("UICorner", MainFrame)
 UICorner.CornerRadius = UDim.new(0, 10)
