@@ -136,6 +136,57 @@ jumpBox.FocusLost:Connect(function()
 	jumpBox.Text = tostring(humanoid.JumpPower)
 end)
 
+-- Anti Blizzard / Anti Badai Toggle
+local Lighting = game:GetService("Lighting")
+local cam = workspace.CurrentCamera
+local antiStormEnabled = false
+
+-- Tombol Toggle UI
+local antiStormBtn = Instance.new("TextButton", contentFrame)
+antiStormBtn.Position = UDim2.new(0, 10, 0, 90)
+antiStormBtn.Size = UDim2.new(0, 230, 0, 30)
+antiStormBtn.Text = "☁ Anti Badai: OFF"
+antiStormBtn.Font = Enum.Font.GothamBold
+antiStormBtn.TextSize = 14
+antiStormBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+antiStormBtn.TextColor3 = Color3.new(1, 1, 1)
+antiStormBtn.BorderSizePixel = 0
+Instance.new("UICorner", antiStormBtn).CornerRadius = UDim.new(0, 6)
+
+-- Fungsi untuk menghapus efek badai
+local function removeBlizzardEffects()
+	for _, v in pairs(Lighting:GetChildren()) do
+		if v:IsA("Atmosphere") or v:IsA("BloomEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then
+			v.Enabled = false
+		end
+	end
+
+	if cam then
+		for _, v in pairs(cam:GetChildren()) do
+			if v:IsA("BlurEffect") then
+				v.Enabled = false
+			end
+		end
+	end
+end
+
+-- Toggle Tombol Klik
+antiStormBtn.MouseButton1Click:Connect(function()
+	antiStormEnabled = not antiStormEnabled
+	antiStormBtn.Text = antiStormEnabled and "☁ Anti Badai: ON" or "☁ Anti Badai: OFF"
+	antiStormBtn.BackgroundColor3 = antiStormEnabled and Color3.fromRGB(60, 100, 60) or Color3.fromRGB(40, 40, 40)
+end)
+
+-- Loop untuk bersihkan efek badai
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if antiStormEnabled then
+			removeBlizzardEffects()
+		end
+	end
+end)
+
 -- GOD MODE TOGGLE
 local godButton = Instance.new("TextButton", contentFrame)
 godButton.Position = UDim2.new(0, 10, 0, 90)
