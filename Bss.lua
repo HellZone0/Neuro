@@ -1,4 +1,4 @@
--- Expedition Antarctica Stylish UI Script (Full Fixed)
+-- Expedition Antarctica Stylish UI Script (Full Fixed) - Diperbaiki tombol toggle
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local humanoid = char:WaitForChild("Humanoid")
@@ -40,6 +40,7 @@ toggleBtn.Font = Enum.Font.GothamBold
 toggleBtn.TextSize = 14
 Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 4)
 
+-- 🔹 FPS Display
 local fpsLabel = Instance.new("TextLabel", MainFrame)
 fpsLabel.Size = UDim2.new(0, 80, 0, 20)
 fpsLabel.Position = UDim2.new(1, -110, 0, 5)
@@ -56,10 +57,10 @@ contentFrame.Position = UDim2.new(0, 0, 0, 35)
 contentFrame.Size = UDim2.new(1, 0, 1, -35)
 contentFrame.BackgroundTransparency = 1
 
+-- Tambahkan UIListLayout untuk mengatur posisi otomatis
 local layout = Instance.new("UIListLayout", contentFrame)
 layout.Padding = UDim.new(0, 6)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local minimized = false
 local originalSize = MainFrame.Size
@@ -72,120 +73,124 @@ toggleBtn.MouseButton1Click:Connect(function()
 	MainFrame.Size = minimized and minimizedSize or originalSize
 end)
 
-game:GetService("UserInputService").InputBegan:Connect(function(input, g)
-	if not g and input.KeyCode == Enum.KeyCode.RightControl then
+-- Toggle UI with RightCtrl
+local UIS = game:GetService("UserInputService")
+UIS.InputBegan:Connect(function(input, gameProcessed)
+	if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
 		ScreenGui.Enabled = not ScreenGui.Enabled
 	end
 end)
 
-local function createBox(labelText, default)
+-- Input Builder
+local function createInput(labelText, defaultText)
 	local container = Instance.new("Frame")
-	container.Size = UDim2.new(1, -20, 0, 30)
+	container.Size = UDim2.new(1, 0, 0, 30)
 	container.BackgroundTransparency = 1
+	container.Name = "InputContainer"
+	container.LayoutOrder = 1
 
 	local label = Instance.new("TextLabel", container)
 	label.Size = UDim2.new(0, 60, 1, 0)
-	label.Position = UDim2.new(0, 0, 0, 0)
 	label.Text = labelText
+	label.TextColor3 = Color3.fromRGB(200, 200, 200)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.new(1,1,1)
 	label.Font = Enum.Font.Gotham
 	label.TextSize = 14
 	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Position = UDim2.new(0, 10, 0, 0)
 
 	local box = Instance.new("TextBox", container)
-	box.Size = UDim2.new(0, 160, 1, 0)
-	box.Position = UDim2.new(0, 70, 0, 0)
-	box.Text = default
+	box.Position = UDim2.new(0, 80, 0, 0)
+	box.Size = UDim2.new(0, 160, 0, 30)
+	box.Text = defaultText
 	box.Font = Enum.Font.Gotham
 	box.TextSize = 14
-	box.TextColor3 = Color3.new(1,1,1)
-	box.BackgroundColor3 = Color3.fromRGB(40,40,40)
+	box.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	box.TextColor3 = Color3.fromRGB(255, 255, 255)
+	box.ClearTextOnFocus = true
+	box.BorderSizePixel = 0
 	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
-	return container, box
-end
 
-local speedContainer, speedBox = createBox("Speed:", tostring(speedValue))
-speedBox.FocusLost:Connect(function()
-	speedValue = tonumber(speedBox.Text) or speedValue
-	speedBox.Text = tostring(speedValue)
-	humanoid.WalkSpeed = speedValue
-end)
-
-local jumpContainer, jumpBox = createBox("Jump:", tostring(jumpValue))
-jumpBox.FocusLost:Connect(function()
-	jumpValue = tonumber(jumpBox.Text) or jumpValue
-	jumpBox.Text = tostring(jumpValue)
-	humanoid.JumpPower = jumpValue
-end)
-
-local function createButton(text, callback)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, -20, 0, 30)
-	btn.Text = text
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 14
-	btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	btn.TextColor3 = Color3.new(1,1,1)
-	btn.BorderSizePixel = 0
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-	btn.MouseButton1Click:Connect(callback)
-	return btn
-end
-
-local function createToggleButton(textOn, textOff, callback)
-	local enabled = false
-	local btn = createButton(textOff, function()
-		enabled = not enabled
-		btn.Text = enabled and textOn or textOff
-		btn.BackgroundColor3 = enabled and Color3.fromRGB(60,100,60) or Color3.fromRGB(40,40,40)
-		callback(enabled)
+	box.MouseEnter:Connect(function()
+		box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 	end)
-	return btn
-end
-
-local function updateFPS()
-	local RunService = game:GetService("RunService")
-	local frameCount, last = 0, tick()
-
-	RunService.RenderStepped:Connect(function()
-		frameCount += 1
-		if tick() - last >= 1 then
-			fpsLabel.Text = "FPS: " .. tostring(frameCount)
-			frameCount = 0
-			last = tick()
-		end
+	box.MouseLeave:Connect(function()
+		box.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 	end)
+
+	container.Parent = contentFrame
+	return box
 end
-updateFPS()
 
--- UI insert order
-speedContainer.Parent = contentFrame
-jumpContainer.Parent = contentFrame
+local speedBox = createInput("Speed:", "16")
+local jumpBox = createInput("Jump:", "50")
 
-createButton("Reset Speed & Jump", function()
+-- Reset Button
+local resetBtn = Instance.new("TextButton")
+resetBtn.Size = UDim2.new(1, -20, 0, 30)
+resetBtn.Position = UDim2.new(0, 10, 0, 0)
+resetBtn.Text = "🔄 Reset Speed & Jump"
+resetBtn.Font = Enum.Font.GothamBold
+resetBtn.TextSize = 14
+resetBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+resetBtn.TextColor3 = Color3.new(1, 1, 1)
+resetBtn.BorderSizePixel = 0
+Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 6)
+resetBtn.Parent = contentFrame
+
+resetBtn.MouseButton1Click:Connect(function()
 	speedValue = 16
 	jumpValue = 50
-	humanoid.WalkSpeed = speedValue
-	humanoid.JumpPower = jumpValue
+	if humanoid then
+		humanoid.WalkSpeed = speedValue
+		humanoid.JumpPower = jumpValue
+	end
 	speedBox.Text = "16"
 	jumpBox.Text = "50"
-end).Parent = contentFrame
+end)
 
-local antiStorm = false
+-- Toggle Button Builder
+local function createToggleButton(textOn, textOff, callback)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, -20, 0, 30)
+	btn.Text = textOff
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 14
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.BorderSizePixel = 0
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+	local enabled = false
+	btn.MouseButton1Click:Connect(function()
+		enabled = not enabled
+		btn.Text = enabled and textOn or textOff
+		btn.BackgroundColor3 = enabled and Color3.fromRGB(60, 100, 60) or Color3.fromRGB(40, 40, 40)
+		callback(enabled)
+	end)
+
+	btn.Parent = contentFrame
+	return btn
+end
+
+-- Anti Blizzard
+local antiStormEnabled = false
 createToggleButton("☁ Anti Badai: ON", "☁ Anti Badai: OFF", function(state)
-	antiStorm = state
-end).Parent = contentFrame
+	antiStormEnabled = state
+end)
 
 task.spawn(function()
-	while true do task.wait(1)
-		if antiStorm then
-			for _, v in pairs(game:GetService("Lighting"):GetChildren()) do
+	while true do
+		task.wait(1)
+		if antiStormEnabled then
+			local Lighting = game:GetService("Lighting")
+			local cam = workspace.CurrentCamera
+			for _, v in pairs(Lighting:GetChildren()) do
 				if v:IsA("Atmosphere") or v:IsA("BloomEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then
 					v.Enabled = false
 				end
 			end
-			for _, v in pairs(workspace.CurrentCamera:GetChildren()) do
+			for _, v in pairs(cam:GetChildren()) do
 				if v:IsA("BlurEffect") then
 					v.Enabled = false
 				end
@@ -194,26 +199,65 @@ task.spawn(function()
 	end
 end)
 
-local godModeConnection
+-- God Mode
+local godConnection
 createToggleButton("🛡️ God Mode: ON", "🛡️ God Mode: OFF", function(state)
 	if state then
-		godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-			if humanoid.Health < humanoid.MaxHealth then
-				humanoid.Health = humanoid.MaxHealth
-			end
-		end)
+		if humanoid then
+			godConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+				if humanoid.Health < humanoid.MaxHealth then
+					humanoid.Health = humanoid.MaxHealth
+				end
+			end)
+		end
 	else
-		if godModeConnection then
-			godModeConnection:Disconnect()
-			godModeConnection = nil
+		if godConnection then
+			godConnection:Disconnect()
+			godConnection = nil
 		end
 	end
-end).Parent = contentFrame
+end)
 
+-- FPS Display
+local RunService = game:GetService("RunService")
+local fps = 0
+local frameCount = 0
+local lastTime = tick()
+
+RunService.RenderStepped:Connect(function()
+	frameCount += 1
+	local now = tick()
+	if now - lastTime >= 1 then
+		fps = frameCount
+		frameCount = 0
+		lastTime = now
+		fpsLabel.Text = "FPS: " .. tostring(fps)
+	end
+end)
+
+-- Update on Respawn
 player.CharacterAdded:Connect(function(newChar)
 	char = newChar
 	humanoid = newChar:WaitForChild("Humanoid")
 	task.wait(0.3)
 	humanoid.WalkSpeed = speedValue
 	humanoid.JumpPower = jumpValue
-end) 
+end)
+
+-- Sync box input
+speedBox.FocusLost:Connect(function()
+	local val = tonumber(speedBox.Text)
+	if val then
+		speedValue = val
+		if humanoid then humanoid.WalkSpeed = val end
+	end
+	speedBox.Text = tostring(speedValue)
+end)\n
+jumpBox.FocusLost:Connect(function()
+	local val = tonumber(jumpBox.Text)
+	if val then
+		jumpValue = val
+		if humanoid then humanoid.JumpPower = val end
+	end
+	jumpBox.Text = tostring(jumpValue)
+end)
