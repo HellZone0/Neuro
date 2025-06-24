@@ -9,7 +9,7 @@ local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 ScreenGui.Name = "EA_StylishUI"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 270, 0, 210)
+MainFrame.Size = UDim2.new(0, 270, 0, 250)
 MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
 MainFrame.BorderSizePixel = 0
