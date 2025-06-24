@@ -1,4 +1,3 @@
-
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local humanoid = char:WaitForChild("Humanoid")
@@ -7,7 +6,10 @@ local speedValue = 16
 local jumpValue = 50
 
 -- GUI
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EA_StylishUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
 ScreenGui.Name = "EA_StylishUI"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
