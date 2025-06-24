@@ -1,4 +1,4 @@
--- Expedition Antarctica Stylish UI Script (Full Fixed) - Diperbaiki tombol toggle
+
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local humanoid = char:WaitForChild("Humanoid")
