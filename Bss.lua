@@ -67,11 +67,15 @@ jumpBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 jumpBox.TextColor3 = Color3.new(1, 1, 1)
 jumpBox.ClearTextOnFocus = false
 
--- Minimize function
+-- Minimize function (revisi fix kotak kosong)
+local originalSize = MainFrame.Size
+local minimizedSize = UDim2.new(0, 250, 0, 35)
+
 toggleBtn.MouseButton1Click:Connect(function()
 	minimized = not minimized
 	contentFrame.Visible = not minimized
 	toggleBtn.Text = minimized and "+" or "-"
+	MainFrame.Size = minimized and minimizedSize or originalSize
 end)
 
 -- Toggle GUI via RightCtrl
