@@ -22,7 +22,7 @@ UICorner.CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, -35, 0, 30)
 Title.Position = UDim2.new(0, 5, 0, 0)
-Title.Text = "❄ Zone Expedition Trainer"
+Title.Text = "❄ Expedition Trainer"
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBold
@@ -37,37 +37,60 @@ toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 toggleBtn.TextColor3 = Color3.new(1, 1, 1)
 toggleBtn.Font = Enum.Font.GothamBold
 toggleBtn.TextSize = 14
-local minimized = false
 
+local minimized = false
 local contentFrame = Instance.new("Frame", MainFrame)
 contentFrame.Name = "ContentFrame"
 contentFrame.Position = UDim2.new(0, 0, 0, 35)
 contentFrame.Size = UDim2.new(1, 0, 1, -35)
 contentFrame.BackgroundTransparency = 1
 
+-- Label Speed
+local speedLabel = Instance.new("TextLabel", contentFrame)
+speedLabel.Position = UDim2.new(0, 10, 0, 10)
+speedLabel.Size = UDim2.new(0, 60, 0, 30)
+speedLabel.Text = "Speed:"
+speedLabel.TextColor3 = Color3.new(1, 1, 1)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = 14
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+
 -- Speed TextBox
 local speedBox = Instance.new("TextBox", contentFrame)
-speedBox.Position = UDim2.new(0, 10, 0, 10)
-speedBox.Size = UDim2.new(0, 230, 0, 30)
-speedBox.Text = "Speed: 16"
+speedBox.Position = UDim2.new(0, 80, 0, 10)
+speedBox.Size = UDim2.new(0, 160, 0, 30)
+speedBox.Text = tostring(humanoid.WalkSpeed)
 speedBox.Font = Enum.Font.Gotham
 speedBox.TextSize = 14
 speedBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 speedBox.TextColor3 = Color3.new(1, 1, 1)
-speedBox.ClearTextOnFocus = false
+speedBox.ClearTextOnFocus = true
+
+-- Label Jump
+local jumpLabel = Instance.new("TextLabel", contentFrame)
+jumpLabel.Position = UDim2.new(0, 10, 0, 50)
+jumpLabel.Size = UDim2.new(0, 60, 0, 30)
+jumpLabel.Text = "Jump:"
+jumpLabel.TextColor3 = Color3.new(1, 1, 1)
+jumpLabel.BackgroundTransparency = 1
+jumpLabel.Font = Enum.Font.Gotham
+jumpLabel.TextSize = 14
+jumpLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 -- Jump TextBox
 local jumpBox = Instance.new("TextBox", contentFrame)
-jumpBox.Position = UDim2.new(0, 10, 0, 50)
-jumpBox.Size = UDim2.new(0, 230, 0, 30)
-jumpBox.Text = "Jump: 50"
+jumpBox.Position = UDim2.new(0, 80, 0, 50)
+jumpBox.Size = UDim2.new(0, 160, 0, 30)
+jumpBox.Text = tostring(humanoid.JumpPower)
 jumpBox.Font = Enum.Font.Gotham
 jumpBox.TextSize = 14
 jumpBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 jumpBox.TextColor3 = Color3.new(1, 1, 1)
-jumpBox.ClearTextOnFocus = false
+jumpBox.ClearTextOnFocus = true
 
--- Minimize function (revisi fix kotak kosong)
+-- Minimize fix (set originalSize setelah parent ready)
+task.wait() -- pastikan layout selesai dulu
 local originalSize = MainFrame.Size
 local minimizedSize = UDim2.new(0, 250, 0, 35)
 
@@ -90,19 +113,17 @@ end)
 
 -- Value update
 speedBox.FocusLost:Connect(function()
-	local text = speedBox.Text:match("%d+")
-	local speed = tonumber(text)
+	local speed = tonumber(speedBox.Text)
 	if speed then
 		humanoid.WalkSpeed = speed
-		speedBox.Text = "Speed: " .. speed
 	end
+	speedBox.Text = tostring(humanoid.WalkSpeed)
 end)
 
 jumpBox.FocusLost:Connect(function()
-	local text = jumpBox.Text:match("%d+")
-	local jump = tonumber(text)
+	local jump = tonumber(jumpBox.Text)
 	if jump then
 		humanoid.JumpPower = jump
-		jumpBox.Text = "Jump: " .. jump
 	end
+	jumpBox.Text = tostring(humanoid.JumpPower)
 end)
