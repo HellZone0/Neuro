@@ -1,8 +1,10 @@
--- Expedition Antarctica Stylish UI Script with God Mode
+-- Expedition Antarctica Stylish UI Script with God Mode + Anti Badai + Dynamic UI
 
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local humanoid = char:WaitForChild("Humanoid")
+local Lighting = game:GetService("Lighting")
+local cam = workspace.CurrentCamera
 
 -- UI Setup
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
@@ -15,10 +17,7 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
-
-
-local UICorner = Instance.new("UICorner", MainFrame)
-UICorner.CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, -40, 0, 30)
@@ -40,9 +39,7 @@ toggleBtn.TextColor3 = Color3.new(1, 1, 1)
 toggleBtn.Font = Enum.Font.GothamBold
 toggleBtn.TextSize = 14
 toggleBtn.AutoButtonColor = false
-
-local btnCorner = Instance.new("UICorner", toggleBtn)
-btnCorner.CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 4)
 
 toggleBtn.MouseEnter:Connect(function()
 	toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -58,7 +55,27 @@ contentFrame.Position = UDim2.new(0, 0, 0, 35)
 contentFrame.Size = UDim2.new(1, 0, 1, -35)
 contentFrame.BackgroundTransparency = 1
 
--- Styled input function
+local originalSize = MainFrame.Size
+local minimizedSize = UDim2.new(0, 270, 0, 35)
+
+toggleBtn.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	contentFrame.Visible = not minimized
+	toggleBtn.Text = minimized and "+" or "-"
+	MainFrame.Size = minimized and minimizedSize or originalSize
+end)
+
+-- Hide UI with RightCtrl
+local UIS = game:GetService("UserInputService")
+local hidden = false
+UIS.InputBegan:Connect(function(input, gameProcessed)
+	if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
+		hidden = not hidden
+		ScreenGui.Enabled = not hidden
+	end
+end)
+
+-- INPUT CREATOR
 local function createInput(labelText, posY, defaultText)
 	local label = Instance.new("TextLabel", contentFrame)
 	label.Position = UDim2.new(0, 10, 0, posY)
@@ -80,9 +97,7 @@ local function createInput(labelText, posY, defaultText)
 	box.TextColor3 = Color3.fromRGB(255, 255, 255)
 	box.ClearTextOnFocus = true
 	box.BorderSizePixel = 0
-
-	local boxCorner = Instance.new("UICorner", box)
-	boxCorner.CornerRadius = UDim.new(0, 6)
+	Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
 
 	box.MouseEnter:Connect(function()
 		box.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
@@ -94,32 +109,28 @@ local function createInput(labelText, posY, defaultText)
 	return box
 end
 
+-- BUTTON CREATOR
+local nextY = 90
+local function createButton(text, callback)
+	local btn = Instance.new("TextButton", contentFrame)
+	btn.Position = UDim2.new(0, 10, 0, nextY)
+	btn.Size = UDim2.new(0, 230, 0, 30)
+	btn.Text = text
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 14
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.BorderSizePixel = 0
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+	btn.MouseButton1Click:Connect(callback)
+	nextY = nextY + 40
+	return btn
+end
+
+-- Speed / Jump Input
 local speedBox = createInput("Speed:", 10, tostring(humanoid.WalkSpeed))
 local jumpBox = createInput("Jump:", 50, tostring(humanoid.JumpPower))
 
--- Minimize logic
-task.wait()
-local originalSize = MainFrame.Size
-local minimizedSize = UDim2.new(0, 270, 0, 35)
-
-toggleBtn.MouseButton1Click:Connect(function()
-	minimized = not minimized
-	contentFrame.Visible = not minimized
-	toggleBtn.Text = minimized and "+" or "-"
-	MainFrame.Size = minimized and minimizedSize or originalSize
-end)
-
--- Toggle UI visibility with RightCtrl
-local UIS = game:GetService("UserInputService")
-local hidden = false
-UIS.InputBegan:Connect(function(input, gameProcessed)
-	if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
-		hidden = not hidden
-		ScreenGui.Enabled = not hidden
-	end
-end)
-
--- Update Speed and Jump
 speedBox.FocusLost:Connect(function()
 	local speed = tonumber(speedBox.Text)
 	if speed then
@@ -136,48 +147,27 @@ jumpBox.FocusLost:Connect(function()
 	jumpBox.Text = tostring(humanoid.JumpPower)
 end)
 
--- Anti Blizzard / Anti Badai Toggle
-local Lighting = game:GetService("Lighting")
-local cam = workspace.CurrentCamera
+-- Anti Blizzard
 local antiStormEnabled = false
-
--- Tombol Toggle UI
-local antiStormBtn = Instance.new("TextButton", contentFrame)
-antiStormBtn.Position = UDim2.new(0, 10, 0, 90)
-antiStormBtn.Size = UDim2.new(0, 230, 0, 30)
-antiStormBtn.Text = "☁ Anti Badai: OFF"
-antiStormBtn.Font = Enum.Font.GothamBold
-antiStormBtn.TextSize = 14
-antiStormBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-antiStormBtn.TextColor3 = Color3.new(1, 1, 1)
-antiStormBtn.BorderSizePixel = 0
-Instance.new("UICorner", antiStormBtn).CornerRadius = UDim.new(0, 6)
-
--- Fungsi untuk menghapus efek badai
 local function removeBlizzardEffects()
 	for _, v in pairs(Lighting:GetChildren()) do
 		if v:IsA("Atmosphere") or v:IsA("BloomEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BlurEffect") then
 			v.Enabled = false
 		end
 	end
-
-	if cam then
-		for _, v in pairs(cam:GetChildren()) do
-			if v:IsA("BlurEffect") then
-				v.Enabled = false
-			end
+	for _, v in pairs(cam:GetChildren()) do
+		if v:IsA("BlurEffect") then
+			v.Enabled = false
 		end
 	end
 end
 
--- Toggle Tombol Klik
-antiStormBtn.MouseButton1Click:Connect(function()
+local antiStormBtn = createButton("☁ Anti Badai: OFF", function()
 	antiStormEnabled = not antiStormEnabled
 	antiStormBtn.Text = antiStormEnabled and "☁ Anti Badai: ON" or "☁ Anti Badai: OFF"
 	antiStormBtn.BackgroundColor3 = antiStormEnabled and Color3.fromRGB(60, 100, 60) or Color3.fromRGB(40, 40, 40)
 end)
 
--- Loop untuk bersihkan efek badai
 task.spawn(function()
 	while true do
 		task.wait(1)
@@ -187,20 +177,7 @@ task.spawn(function()
 	end
 end)
 
--- GOD MODE TOGGLE
-local godButton = Instance.new("TextButton", contentFrame)
-godButton.Position = UDim2.new(0, 10, 0, 90)
-godButton.Size = UDim2.new(0, 230, 0, 30)
-godButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-godButton.TextColor3 = Color3.new(1, 1, 1)
-godButton.Font = Enum.Font.GothamBold
-godButton.TextSize = 14
-godButton.Text = "🛡️ God Mode: OFF"
-godButton.BorderSizePixel = 0
-
-local corner = Instance.new("UICorner", godButton)
-corner.CornerRadius = UDim.new(0, 6)
-
+-- God Mode
 local godMode = false
 local function keepHealth()
 	while godMode do
@@ -211,7 +188,7 @@ local function keepHealth()
 	end
 end
 
-godButton.MouseButton1Click:Connect(function()
+local godButton = createButton("🛡️ God Mode: OFF", function()
 	godMode = not godMode
 	godButton.Text = godMode and "🛡️ God Mode: ON" or "🛡️ God Mode: OFF"
 	if godMode then
