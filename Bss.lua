@@ -1,3 +1,4 @@
+-- Expedition Antarctica Stylish UI Script (Full Fixed)
 local player = game.Players.LocalPlayer
 local char = player.Character or player.CharacterAdded:Wait()
 local humanoid = char:WaitForChild("Humanoid")
@@ -6,10 +7,7 @@ local speedValue = 16
 local jumpValue = 50
 
 -- GUI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "EA_StylishUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = player:WaitForChild("PlayerGui")
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 ScreenGui.Name = "EA_StylishUI"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
@@ -25,7 +23,7 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, -40, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Text = "❄️ Zone Expedition"
+Title.Text = "❄️ Zone Expedition Trainer"
 Title.TextColor3 = Color3.fromRGB(180, 230, 255)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamSemibold
@@ -45,7 +43,7 @@ Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 4)
 -- 🔹 FPS Display
 local fpsLabel = Instance.new("TextLabel", MainFrame)
 fpsLabel.Size = UDim2.new(0, 80, 0, 20)
-fpsLabel.Position = UDim2.new(1, -110, 0, 5)
+fpsLabel.Position = UDim2.new(1, -110, 0, 5) -- Diatur supaya di samping kiri toggleBtn
 fpsLabel.BackgroundTransparency = 1
 fpsLabel.TextColor3 = Color3.fromRGB(180, 230, 255)
 fpsLabel.Font = Enum.Font.GothamSemibold
@@ -58,11 +56,6 @@ contentFrame.Name = "ContentFrame"
 contentFrame.Position = UDim2.new(0, 0, 0, 35)
 contentFrame.Size = UDim2.new(1, 0, 1, -35)
 contentFrame.BackgroundTransparency = 1
-
--- Tambahkan UIListLayout untuk mengatur posisi otomatis
-local layout = Instance.new("UIListLayout", contentFrame)
-layout.Padding = UDim.new(0, 6)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 local minimized = false
 local originalSize = MainFrame.Size
@@ -84,25 +77,19 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- Input Builder
-local function createInput(labelText, defaultText)
-	local container = Instance.new("Frame")
-	container.Size = UDim2.new(1, 0, 0, 30)
-	container.BackgroundTransparency = 1
-	container.Name = "InputContainer"
-	container.LayoutOrder = 1
-
-	local label = Instance.new("TextLabel", container)
-	label.Size = UDim2.new(0, 60, 1, 0)
+local function createInput(labelText, posY, defaultText)
+	local label = Instance.new("TextLabel", contentFrame)
+	label.Position = UDim2.new(0, 10, 0, posY)
+	label.Size = UDim2.new(0, 60, 0, 30)
 	label.Text = labelText
 	label.TextColor3 = Color3.fromRGB(200, 200, 200)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.Gotham
 	label.TextSize = 14
 	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.Position = UDim2.new(0, 10, 0, 0)
 
-	local box = Instance.new("TextBox", container)
-	box.Position = UDim2.new(0, 80, 0, 0)
+	local box = Instance.new("TextBox", contentFrame)
+	box.Position = UDim2.new(0, 80, 0, posY)
 	box.Size = UDim2.new(0, 160, 0, 30)
 	box.Text = defaultText
 	box.Font = Enum.Font.Gotham
@@ -120,17 +107,87 @@ local function createInput(labelText, defaultText)
 		box.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 	end)
 
-	container.Parent = contentFrame
 	return box
 end
 
-local speedBox = createInput("Speed:", "16")
-local jumpBox = createInput("Jump:", "50")
+-- Input
+local speedBox = createInput("Speed:", 10, "16")
+local jumpBox = createInput("Jump:", 50, "50")
+
+-- Tambahkan tombol + dan - untuk Speed
+local speedMinus = Instance.new("TextButton", contentFrame)
+speedMinus.Position = UDim2.new(0, 10, 0, 90)
+speedMinus.Size = UDim2.new(0, 40, 0, 25)
+speedMinus.Text = "-"
+speedMinus.Font = Enum.Font.GothamBold
+speedMinus.TextSize = 18
+speedMinus.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+speedMinus.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", speedMinus).CornerRadius = UDim.new(0, 4)
+
+local speedPlus = speedMinus:Clone()
+speedPlus.Text = "+"
+speedPlus.Position = UDim2.new(0, 210, 0, 90)
+speedPlus.Parent = contentFrame
+
+speedMinus.MouseButton1Click:Connect(function()
+	speedValue = math.max(0, speedValue - 1)
+	if humanoid then humanoid.WalkSpeed = speedValue end
+	speedBox.Text = tostring(speedValue)
+end)
+
+speedPlus.MouseButton1Click:Connect(function()
+	speedValue += 1
+	if humanoid then humanoid.WalkSpeed = speedValue end
+	speedBox.Text = tostring(speedValue)
+end)
+
+-- Tambahkan tombol + dan - untuk Jump
+local jumpMinus = speedMinus:Clone()
+jumpMinus.Position = UDim2.new(0, 10, 0, 130)
+jumpMinus.Text = "-"
+jumpMinus.Parent = contentFrame
+
+local jumpPlus = speedPlus:Clone()
+jumpPlus.Position = UDim2.new(0, 210, 0, 130)
+jumpPlus.Text = "+"
+jumpPlus.Parent = contentFrame
+
+jumpMinus.MouseButton1Click:Connect(function()
+	jumpValue = math.max(0, jumpValue - 5)
+	if humanoid then humanoid.JumpPower = jumpValue end
+	jumpBox.Text = tostring(jumpValue)
+end)
+
+jumpPlus.MouseButton1Click:Connect(function()
+	jumpValue += 5
+	if humanoid then humanoid.JumpPower = jumpValue end
+	jumpBox.Text = tostring(jumpValue)
+end)
+
+-- Apply on change
+speedBox.FocusLost:Connect(function()
+	local val = tonumber(speedBox.Text)
+	if val then
+		speedValue = val
+		if humanoid then humanoid.WalkSpeed = val end
+	end
+	speedBox.Text = tostring(speedValue)
+end)
+
+jumpBox.FocusLost:Connect(function()
+	local val = tonumber(jumpBox.Text)
+	if val then
+		jumpValue = val
+		if humanoid then humanoid.JumpPower = val end
+	end
+	jumpBox.Text = tostring(jumpValue)
+end)
 
 -- Reset Button
-local resetBtn = Instance.new("TextButton")
-resetBtn.Size = UDim2.new(1, -20, 0, 30)
-resetBtn.Position = UDim2.new(0, 10, 0, 0)
+local resetBtn = Instance.new("TextButton", contentFrame)
+resetBtn.Position = UDim2.new(0, 10, 0, 170)
+resetBtn.Size = UDim2.new(0, 230, 0, 30)
 resetBtn.Text = "🔄 Reset Speed & Jump"
 resetBtn.Font = Enum.Font.GothamBold
 resetBtn.TextSize = 14
@@ -138,7 +195,6 @@ resetBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 resetBtn.TextColor3 = Color3.new(1, 1, 1)
 resetBtn.BorderSizePixel = 0
 Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 6)
-resetBtn.Parent = contentFrame
 
 resetBtn.MouseButton1Click:Connect(function()
 	speedValue = 16
@@ -152,32 +208,32 @@ resetBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Toggle Button Builder
-local function createToggleButton(textOn, textOff, callback)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(1, -20, 0, 30)
-	btn.Text = textOff
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 14
+local function createToggleButton(name, posY, onText, offText, callback)
+	local btn = Instance.new("TextButton", contentFrame)
+	btn.Position = UDim2.new(0, 10, 0, posY)
+	btn.Size = UDim2.new(0, 230, 0, 30)
 	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 	btn.TextColor3 = Color3.new(1, 1, 1)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 14
+	btn.Text = offText
 	btn.BorderSizePixel = 0
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
 	local enabled = false
 	btn.MouseButton1Click:Connect(function()
 		enabled = not enabled
-		btn.Text = enabled and textOn or textOff
+		btn.Text = enabled and onText or offText
 		btn.BackgroundColor3 = enabled and Color3.fromRGB(60, 100, 60) or Color3.fromRGB(40, 40, 40)
 		callback(enabled)
 	end)
 
-	btn.Parent = contentFrame
 	return btn
 end
 
 -- Anti Blizzard
 local antiStormEnabled = false
-createToggleButton("☁ Anti Badai: ON", "☁ Anti Badai: OFF", function(state)
+createToggleButton("AntiStorm", 90, "☁ Anti Badai: ON", "☁ Anti Badai: OFF", function(state)
 	antiStormEnabled = state
 end)
 
@@ -203,12 +259,13 @@ end)
 
 -- God Mode
 local godConnection
-createToggleButton("🛡️ God Mode: ON", "🛡️ God Mode: OFF", function(state)
+createToggleButton("GodMode", 130, "🛡️ God Mode: ON", "🛡️ God Mode: OFF", function(state)
 	if state then
-		if humanoid then
-			godConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-				if humanoid.Health < humanoid.MaxHealth then
-					humanoid.Health = humanoid.MaxHealth
+		local hum = humanoid
+		if hum then
+			godConnection = hum:GetPropertyChangedSignal("Health"):Connect(function()
+				if hum.Health < hum.MaxHealth then
+					hum.Health = hum.MaxHealth
 				end
 			end)
 		end
@@ -220,7 +277,7 @@ createToggleButton("🛡️ God Mode: ON", "🛡️ God Mode: OFF", function(sta
 	end
 end)
 
--- FPS Display
+-- 🔹 FPS Calculation
 local RunService = game:GetService("RunService")
 local fps = 0
 local frameCount = 0
@@ -229,6 +286,7 @@ local lastTime = tick()
 RunService.RenderStepped:Connect(function()
 	frameCount += 1
 	local now = tick()
+
 	if now - lastTime >= 1 then
 		fps = frameCount
 		frameCount = 0
@@ -244,22 +302,4 @@ player.CharacterAdded:Connect(function(newChar)
 	task.wait(0.3)
 	humanoid.WalkSpeed = speedValue
 	humanoid.JumpPower = jumpValue
-end)
-
--- Sync box input
-speedBox.FocusLost:Connect(function()
-	local val = tonumber(speedBox.Text)
-	if val then
-		speedValue = val
-		if humanoid then humanoid.WalkSpeed = val end
-	end
-	speedBox.Text = tostring(speedValue)
-end)\n
-jumpBox.FocusLost:Connect(function()
-	local val = tonumber(jumpBox.Text)
-	if val then
-		jumpValue = val
-		if humanoid then humanoid.JumpPower = val end
-	end
-	jumpBox.Text = tostring(jumpValue)
 end)
