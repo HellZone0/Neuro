@@ -23,7 +23,7 @@ Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, -40, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Text = "❄️ Zone Expedition Trainer"
+Title.Text = "⚡ Zone Expedition Trainer"
 Title.TextColor3 = Color3.fromRGB(180, 230, 255)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamSemibold
@@ -113,57 +113,6 @@ end
 -- Input
 local speedBox = createInput("Speed:", 10, "16")
 local jumpBox = createInput("Jump:", 50, "50")
-
--- Tambahkan tombol + dan - untuk Speed
-local speedMinus = Instance.new("TextButton", contentFrame)
-speedMinus.Position = UDim2.new(0, 10, 0, 90)
-speedMinus.Size = UDim2.new(0, 40, 0, 25)
-speedMinus.Text = "-"
-speedMinus.Font = Enum.Font.GothamBold
-speedMinus.TextSize = 18
-speedMinus.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-speedMinus.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", speedMinus).CornerRadius = UDim.new(0, 4)
-
-local speedPlus = speedMinus:Clone()
-speedPlus.Text = "+"
-speedPlus.Position = UDim2.new(0, 210, 0, 90)
-speedPlus.Parent = contentFrame
-
-speedMinus.MouseButton1Click:Connect(function()
-	speedValue = math.max(0, speedValue - 1)
-	if humanoid then humanoid.WalkSpeed = speedValue end
-	speedBox.Text = tostring(speedValue)
-end)
-
-speedPlus.MouseButton1Click:Connect(function()
-	speedValue += 1
-	if humanoid then humanoid.WalkSpeed = speedValue end
-	speedBox.Text = tostring(speedValue)
-end)
-
--- Tambahkan tombol + dan - untuk Jump
-local jumpMinus = speedMinus:Clone()
-jumpMinus.Position = UDim2.new(0, 10, 0, 130)
-jumpMinus.Text = "-"
-jumpMinus.Parent = contentFrame
-
-local jumpPlus = speedPlus:Clone()
-jumpPlus.Position = UDim2.new(0, 210, 0, 130)
-jumpPlus.Text = "+"
-jumpPlus.Parent = contentFrame
-
-jumpMinus.MouseButton1Click:Connect(function()
-	jumpValue = math.max(0, jumpValue - 5)
-	if humanoid then humanoid.JumpPower = jumpValue end
-	jumpBox.Text = tostring(jumpValue)
-end)
-
-jumpPlus.MouseButton1Click:Connect(function()
-	jumpValue += 5
-	if humanoid then humanoid.JumpPower = jumpValue end
-	jumpBox.Text = tostring(jumpValue)
-end)
 
 -- Apply on change
 speedBox.FocusLost:Connect(function()
