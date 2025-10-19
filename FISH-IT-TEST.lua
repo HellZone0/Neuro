@@ -371,6 +371,9 @@ local Section = Auto:Section({
 
 local autoFishingRunning = false
 local autoFishingToggle
+-- Tambahkan variabel untuk multiplier kecepatan
+local fishingSpeedMultiplier = 2 -- Default speed: 2x
+local fishingSpeedSlider -- Variabel untuk kontrol slider
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -386,62 +389,69 @@ local REUnequipToolFromHotbar = ReplicatedStorage.Packages._Index["sleitnick_net
 local RFCancelFishingInputs = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/CancelFishingInputs"]
 local REFishCaught = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FishCaught"]
 
--- Variables
 local lastFishTime = 0
 local running = false
 local equipped = false
-local fishCount = 0
-local consecutiveSlowFish = 0
-local fishCaughtConnection = nil
+local lastResetTime = 0
+local fishCheckEnabled = false
+local initialSetupDone = false 
 
-local performanceMetrics = {
-    lastCheckTime = 0,
-    fishPerMinute = 0,
-    totalFish = 0
-}
-
--- Safe remote helpers
 local function safeFire(remote, arg)
-    if not remote then return false end
-    local ok = pcall(function()
-        if arg ~= nil then
-            remote:FireServer(arg)
-        else
-            remote:FireServer()
-        end
-    end)
-    return ok
+	if not remote then
+		return false
+	end
+	local ok, err = pcall(function()
+		if arg ~= nil then
+			remote:FireServer(arg)
+		else
+			remote:FireServer()
+		end
+	end)
+	if not ok then
+		return false
+	end
+	return true
 end
 
 local function safeInvoke(remote, arg1, arg2)
-    if not remote then return nil end
-    local ok, res = pcall(function()
-        if arg1 ~= nil and arg2 ~= nil then
-            return remote:InvokeServer(arg1, arg2)
-        elseif arg1 ~= nil then
-            return remote:InvokeServer(arg1)
-        else
-            return remote:InvokeServer()
-        end
-    end)
-    return ok and res or nil
+	if not remote then
+		return nil
+	end
+	local ok, res = pcall(function()
+		if arg1 ~= nil and arg2 ~= nil then
+			return remote:InvokeServer(arg1, arg2)
+		elseif arg1 ~= nil then
+			return remote:InvokeServer(arg1)
+		else
+			return remote:InvokeServer()
+		end
+	end)
+	if not ok then
+		return nil
+	end
+	return res
 end
 
--- Notification helper
 local function showNotification(title, content)
     if WindUI and WindUI.Notify then
-        WindUI:Notify({Title = title, Content = content, Duration = 3})
+        WindUI:Notify({
+            Title = title,
+            Content = content,
+            Duration = 3,
+        })
     elseif Auto and Auto.Notify then
-        Auto:Notify({Title = title, Content = content, Duration = 3})
+        Auto:Notify({
+            Title = title,
+            Content = content,
+            Duration = 3,
+        })
     end
 end
 
--- Equip tool
-local function equipTool()
+local function equipToolOnce()
     if not equipped then
-        for i = 1, 2 do
+        for i = 1, 3 do
             safeFire(REEquipToolFromHotbar, 1)
-            task.wait(0.05)
         end
         equipped = true
     end
@@ -449,173 +459,178 @@ end
 
 local function resetTool()
     safeFire(REUnequipToolFromHotbar)
-    task.wait(0.1)
     equipped = false
-    equipTool()
+    equipToolOnce()
 end
 
--- Full fishing cycle (ensures rod ready every pancingan)
-local function fullFishingCycle()
-    if not running then return end
-
-    -- Cancel any fishing
-    safeInvoke(RFCancelFishingInputs)
-    task.wait(0.1)
-
-    -- Unequip & re-equip rod
-    safeFire(REUnequipToolFromHotbar)
-    task.wait(0.1)
-    safeFire(REEquipToolFromHotbar, 1)
-    task.wait(0.1)
-
-    -- Charge rod
+local function doChargeAndRequest()
     safeInvoke(RFChargeFishingRod, 2)
-    task.wait(0.05)
+    
 
-    -- Request minigame
-    for i = 1, 3 do
+    for i = 1, 1 do
         safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
-        task.wait(0.05)
+        task.wait() 
     end
 end
 
--- Spam completed only when minigame active
-local function setupMinigameHandler()
-    local playerGui = player:WaitForChild("PlayerGui")
-    task.spawn(function()
-        while running do
-            local minigame = playerGui:FindFirstChild("FishingMinigame")
-            if minigame and minigame.Enabled then
-                for i = 1, 15 do
-                    if not running then break end
-                    safeFire(REFishingCompleted)
-                    task.wait(0.03)
-                end
-            end
-            task.wait(0.05)
-        end
-    end)
-end
-
--- Fish caught handler
-local function setupFishCaughtHandler()
-    if fishCaughtConnection then
-        fishCaughtConnection:Disconnect()
+local function doRequestOnly()
+    for i = 1, 2 do
+        safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
+        task.wait() 
     end
-
-    fishCaughtConnection = REFishCaught.OnClientEvent:Connect(function(fishName, fishData)
-        if not running then return end
-
-        fishCount = fishCount + 1
-        performanceMetrics.totalFish = performanceMetrics.totalFish + 1
-        lastFishTime = tick()
-        consecutiveSlowFish = 0
-
-        -- Delay minimal agar server register
-        task.spawn(function()
-            task.wait(0.12)
-            fullFishingCycle()
-        end)
-    end)
 end
 
--- Anti-stuck / check loop
+local function forceResetFishing()
+    
+    for i = 1, 2 do
+        safeInvoke(RFCancelFishingInputs)
+    end
+    
+    resetTool()
+    task.wait(0.5) 
+    doChargeAndRequest()  
+    lastFishTime = tick() 
+end
+
 local function fishCheckLoop()
-    while running do
+    local retryCount = 0
+    local maxRetries = 10
+    
+    while running and fishCheckEnabled do
         local currentTime = tick()
-        local timeSinceLastFish = currentTime - lastFishTime
-
-        if timeSinceLastFish >= 5 and lastFishTime > 0 then
-            -- Force reset jika stuck
-            fullFishingCycle()
-        elseif timeSinceLastFish >= 2.5 and lastFishTime > 0 then
-            for i = 1, 2 do
-                safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
-                task.wait(0.05)
+        -- Pemeriksaan waktu lebih longgar (misalnya 8 detik) untuk memastikan tidak ada stuck.
+        if currentTime - lastFishTime >= 8 and lastFishTime > 0 then 
+            retryCount = retryCount + 1
+            forceResetFishing()
+            
+            if retryCount >= maxRetries then
+                retryCount = 0
             end
+        else
+            retryCount = 0
         end
-
-        if currentTime - performanceMetrics.lastCheckTime >= 60 then
-            performanceMetrics.fishPerMinute = performanceMetrics.totalFish
-            performanceMetrics.totalFish = 0
-            performanceMetrics.lastCheckTime = currentTime
-        end
-
-        task.wait(0.5)
-    end
-end
-
--- Periodic reset to prevent rod hang
-local function periodicResetLoop()
-    while running do
-        task.wait(180)
-        if running then
-            resetTool()
-            task.wait(0.15)
-            fullFishingCycle()
-        end
-    end
-end
-
--- Main fishing cycle
-local function fishingCycle()
-    lastFishTime = tick()
-    fishCount = 0
-    consecutiveSlowFish = 0
-    performanceMetrics.lastCheckTime = tick()
-    performanceMetrics.totalFish = 0
-
-    setupFishCaughtHandler()
-    setupMinigameHandler()
-
-    task.spawn(fishCheckLoop)
-    task.spawn(periodicResetLoop)
-
-    equipTool()
-    task.wait(0.15)
-    fullFishingCycle()
-
-    showNotification("Instant Fishing", "Started with optimal speed!")
-
-    while running do
         task.wait(1)
     end
+end
 
-    if fishCaughtConnection then
-        fishCaughtConnection:Disconnect()
-        fishCaughtConnection = nil
+local function spamCompletedLoop()
+    -- Waktu tunggu yang lebih kecil untuk menampung speed up
+    local baseWaitTime = 0.005 -- Waktu tunggu dasar minimal (misal 1/200 detik)
+    while running do
+        safeFire(REFishingCompleted)
+        -- Gunakan 1/FPS atau baseWaitTime yang lebih kecil
+        task.wait(baseWaitTime) 
     end
 end
 
--- UI toggle
+local function equipToolLoop()
+    while running do
+        safeFire(REEquipToolFromHotbar, 1)
+        task.wait(2)
+    end
+end
+
+local function periodicResetLoop()
+    while running do
+        task.wait(300)
+        if running then
+            resetTool()
+            lastResetTime = tick()
+        end
+    end
+end
+
+local function setupFishCaughtHandler()
+    -- Sambungkan handler hanya sekali
+    if not initialSetupDone then
+        REFishCaught.OnClientEvent:Connect(function(fishName, fishData)
+            lastFishTime = tick()
+            
+            if running then
+                -- Nilai waktu tunggu dikurangi sesuai multiplier!
+                local waitTime = 0.5 / fishingSpeedMultiplier 
+                -- Memastikan wait time tidak terlalu kecil, misalnya min 0.01 detik
+                waitTime = math.max(waitTime, 0.01) 
+                
+                task.wait(waitTime)
+                doChargeAndRequest() 
+            end
+        end)
+    end
+end
+
+local function fishingCycle()
+    lastResetTime = tick()
+    lastFishTime = tick()
+    fishCheckEnabled = true
+    
+    setupFishCaughtHandler() -- Panggil setup handler di sini
+    
+    task.spawn(spamCompletedLoop)
+    task.spawn(equipToolLoop)
+    task.spawn(fishCheckLoop)
+    task.spawn(periodicResetLoop)
+    
+    task.wait(0.5)  
+    doChargeAndRequest()  
+    initialSetupDone = true -- Tandai setup sudah dilakukan
+    
+    
+    while running do
+        task.wait()
+    end
+    
+    fishCheckEnabled = false
+    initialSetupDone = false
+end
+
+-- ===============================================
+-- UI CONTROLS DENGAN SLIDER
+-- ===============================================
+
+Auto:Divider()
+
+-- SLIDER UNTUK MENGATUR KECEPATAN
+fishingSpeedSlider = Auto:Slider({
+    Title = "Fishing Speed Multiplier",
+    Type = "Slider",
+    Desc = "Atur kecepatan tangkapan (1x - 10x). Default 2x.",
+    Min = 2,    -- Kecepatan minimum: 2x (seperti yang Anda sebutkan)
+    Max = 10,   -- Kecepatan maksimum: 10x
+    Default = 2,
+    Callback = function(value) 
+        -- Update multiplier saat slider digeser
+        fishingSpeedMultiplier = value
+    end,
+    Decimals = 1 -- Opsional, memungkinkan nilai desimal
+})
+
+Auto:Space()
+Auto:Divider()
+
 autoFishingToggle = Auto:Toggle({
     Title = "Auto Fishing", 
     Type = "Toggle",
-    Desc = "OPTIMIZED INSTANT FISHING - 60+ FISH/MIN",
+    Desc = "INSTANT FISHING - WITH ANTI STUCK SYSTEM. Kecepatan diatur oleh slider di atas.",
     Default = false,
-    Callback = function(state)
+    Callback = function(state) 
         running = state
         autoFishingRunning = state 
-
         if running then
             task.spawn(fishingCycle)
         else
             safeInvoke(RFCancelFishingInputs)
-            safeFire(REUnequipToolFromHotbar)
             equipped = false
-
-            if fishCaughtConnection then
-                fishCaughtConnection:Disconnect()
-                fishCaughtConnection = nil
-            end
-
-            showNotification("Instant Fishing", "Stopped. Total fish: "..fishCount)
+            fishCheckEnabled = false
+            -- Tidak perlu mereset initialSetupDone di sini agar handler OnClientEvent tidak terhubung berkali-kali
         end
     end
 })
 
 Auto:Space()
 Auto:Divider()
+
+
 
 
 
