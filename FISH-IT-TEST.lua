@@ -371,9 +371,9 @@ local Section = Auto:Section({
 
 local autoFishingRunning = false
 local autoFishingToggle
--- Tambahkan variabel untuk multiplier kecepatan
+-- Variabel untuk multiplier kecepatan
 local fishingSpeedMultiplier = 2 -- Default speed: 2x
-local fishingSpeedSlider -- Variabel untuk kontrol slider
+local fishingSpeedInput -- Variabel untuk kontrol Input
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -498,8 +498,7 @@ local function fishCheckLoop()
     
     while running and fishCheckEnabled do
         local currentTime = tick()
-        -- Pemeriksaan waktu lebih longgar (misalnya 8 detik) untuk memastikan tidak ada stuck.
-        if currentTime - lastFishTime >= 8 and lastFishTime > 0 then 
+        if currentTime - lastFishTime >= 8 and lastFishTime > 0 then
             retryCount = retryCount + 1
             forceResetFishing()
             
@@ -514,11 +513,10 @@ local function fishCheckLoop()
 end
 
 local function spamCompletedLoop()
-    -- Waktu tunggu yang lebih kecil untuk menampung speed up
-    local baseWaitTime = 0.005 -- Waktu tunggu dasar minimal (misal 1/200 detik)
+    -- Waktu tunggu yang sangat kecil untuk memastikan REFishingCompleted terkirim
+    local baseWaitTime = 0.005 
     while running do
         safeFire(REFishingCompleted)
-        -- Gunakan 1/FPS atau baseWaitTime yang lebih kecil
         task.wait(baseWaitTime) 
     end
 end
@@ -547,9 +545,11 @@ local function setupFishCaughtHandler()
             lastFishTime = tick()
             
             if running then
-                -- Nilai waktu tunggu dikurangi sesuai multiplier!
+                -- Hitung waktu tunggu berdasarkan multiplier kecepatan
+                -- 0.5 adalah waktu tunggu dasar (misalnya 1x)
                 local waitTime = 0.5 / fishingSpeedMultiplier 
-                -- Memastikan wait time tidak terlalu kecil, misalnya min 0.01 detik
+                
+                -- Memastikan wait time minimal 0.01 detik agar tidak terlalu cepat/crash
                 waitTime = math.max(waitTime, 0.01) 
                 
                 task.wait(waitTime)
@@ -564,7 +564,7 @@ local function fishingCycle()
     lastFishTime = tick()
     fishCheckEnabled = true
     
-    setupFishCaughtHandler() -- Panggil setup handler di sini
+    setupFishCaughtHandler() 
     
     task.spawn(spamCompletedLoop)
     task.spawn(equipToolLoop)
@@ -573,7 +573,7 @@ local function fishingCycle()
     
     task.wait(0.5)  
     doChargeAndRequest()  
-    initialSetupDone = true -- Tandai setup sudah dilakukan
+    initialSetupDone = true 
     
     
     while running do
@@ -581,28 +581,42 @@ local function fishingCycle()
     end
     
     fishCheckEnabled = false
-    initialSetupDone = false
+    -- initialSetupDone = false -- Jangan reset ini agar handler OnClientEvent tidak terhubung berulang kali
 end
 
 -- ===============================================
--- UI CONTROLS DENGAN SLIDER
+-- UI CONTROLS DENGAN INPUT
 -- ===============================================
 
 Auto:Divider()
 
--- SLIDER UNTUK MENGATUR KECEPATAN
-fishingSpeedSlider = Auto:Slider({
+-- INPUT UNTUK MENGATUR KECEPATAN
+fishingSpeedInput = Auto:Input({
     Title = "Fishing Speed Multiplier",
-    Type = "Slider",
-    Desc = "Atur kecepatan tangkapan (1x - 10x). Default 2x.",
-    Min = 2,    -- Kecepatan minimum: 2x (seperti yang Anda sebutkan)
-    Max = 10,   -- Kecepatan maksimum: 10x
-    Default = 2,
-    Callback = function(value) 
-        -- Update multiplier saat slider digeser
-        fishingSpeedMultiplier = value
+    Type = "Input",
+    Desc = "Masukkan nilai multiplier (e.g., 2, 5.5, 10). Kecepatan normal adalah 2.",
+    Default = tostring(fishingSpeedMultiplier), -- Gunakan nilai default 2
+    Placeholder = "2.0",
+    Callback = function(text) 
+        -- Bersihkan input dan konversi ke angka
+        local cleanedText = text:gsub("[^0-9%.]", "") -- Hapus karakter selain angka dan titik
+        local value = tonumber(cleanedText)
+        
+        if value and value >= 2 then
+            -- Batasi kecepatan maksimum (misalnya 100x)
+            fishingSpeedMultiplier = math.min(value, 100) 
+            showNotification("Speed Updated", "Kecepatan disetel ke x" .. string.format("%.1f", fishingSpeedMultiplier))
+        elseif value and value < 2 then
+            -- Pastikan nilai minimal 2
+            fishingSpeedMultiplier = 2
+            showNotification("Peringatan", "Kecepatan minimum adalah x2.")
+        else
+            -- Jika input tidak valid/kosong, gunakan nilai default (atau nilai terakhir)
+            -- Untuk menjaga fungsi tetap berjalan, biarkan nilai terakhir, atau atur ke default:
+            fishingSpeedMultiplier = 2 
+            showNotification("Peringatan", "Input tidak valid. Kecepatan disetel ke x2.")
+        end
     end,
-    Decimals = 1 -- Opsional, memungkinkan nilai desimal
 })
 
 Auto:Space()
@@ -611,7 +625,7 @@ Auto:Divider()
 autoFishingToggle = Auto:Toggle({
     Title = "Auto Fishing", 
     Type = "Toggle",
-    Desc = "INSTANT FISHING - WITH ANTI STUCK SYSTEM. Kecepatan diatur oleh slider di atas.",
+    Desc = "INSTANT FISHING - WITH ANTI STUCK SYSTEM. Kecepatan diatur melalui input di atas.",
     Default = false,
     Callback = function(state) 
         running = state
@@ -622,14 +636,12 @@ autoFishingToggle = Auto:Toggle({
             safeInvoke(RFCancelFishingInputs)
             equipped = false
             fishCheckEnabled = false
-            -- Tidak perlu mereset initialSetupDone di sini agar handler OnClientEvent tidak terhubung berkali-kali
         end
     end
 })
 
 Auto:Space()
 Auto:Divider()
-
 
 
 
