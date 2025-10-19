@@ -372,9 +372,7 @@ local Section = Auto:Section({
 
 local autoFishingRunning = false
 local autoFishingToggle
--- Variabel untuk multiplier kecepatan
 local fishingSpeedMultiplier = 1 -- Default speed: 1x (normal)
-local fishingSpeedInput
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -395,6 +393,7 @@ local running = false
 local equipped = false
 local fishCaughtConnection = nil
 local completionConnection = nil
+local minigameConnection = nil
 
 local function safeFire(remote, arg)
     if not remote then return false end
@@ -459,8 +458,8 @@ local function startFishing()
     safeInvoke(RFChargeFishingRod, 2)
     
     -- Jumlah request berdasarkan speed multiplier
-    local requestCount = math.floor(1 + (fishingSpeedMultiplier * 2))
-    requestCount = math.min(requestCount, 20) -- Max 20 requests
+    local requestCount = math.floor(3 + (fishingSpeedMultiplier * 2))
+    requestCount = math.min(requestCount, 20)
     
     for i = 1, requestCount do
         safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
@@ -477,6 +476,35 @@ local function forceResetFishing()
     lastFishTime = tick()
 end
 
+-- CRITICAL: Minigame handler untuk menarik ikan
+local function setupMinigameHandler()
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    if minigameConnection then
+        minigameConnection:Disconnect()
+    end
+    
+    -- Monitor minigame dengan RenderStepped untuk deteksi instant
+    minigameConnection = RunService.RenderStepped:Connect(function()
+        if not running then
+            if minigameConnection then
+                minigameConnection:Disconnect()
+            end
+            return
+        end
+        
+        local fishingMinigame = playerGui:FindFirstChild("FishingMinigame")
+        
+        if fishingMinigame and fishingMinigame.Enabled then
+            -- Minigame terdeteksi - spam completion aggressively
+            local spamCount = math.floor(15 + (fishingSpeedMultiplier * 5))
+            for i = 1, spamCount do
+                safeFire(REFishingCompleted)
+            end
+        end
+    end)
+end
+
 -- Spam completion dengan kecepatan berdasarkan multiplier
 local function spamCompletedLoop()
     if completionConnection then
@@ -491,8 +519,8 @@ local function spamCompletedLoop()
             return
         end
         
-        -- Spam lebih banyak jika multiplier tinggi
-        local spamCount = math.floor(1 + fishingSpeedMultiplier)
+        -- Spam completion setiap frame
+        local spamCount = math.floor(2 + fishingSpeedMultiplier)
         for i = 1, spamCount do
             safeFire(REFishingCompleted)
         end
@@ -519,7 +547,7 @@ local function fishCheckLoop()
             forceResetFishing()
         elseif timeSinceLastFish >= (timeoutLimit / 2) and lastFishTime > 0 then
             -- Speed boost
-            local boostCount = math.floor(2 + fishingSpeedMultiplier)
+            local boostCount = math.floor(3 + fishingSpeedMultiplier)
             for i = 1, boostCount do
                 safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
                 safeFire(REFishingCompleted)
@@ -549,13 +577,9 @@ local function setupFishCaughtHandler()
         lastFishTime = tick()
         
         if running then
-            -- CRITICAL: Hitung delay berdasarkan speed multiplier
-            -- Base delay: 0.1 detik
-            -- Dengan multiplier 9: 0.1 / 9 = 0.011 detik (super cepat)
-            local baseDelay = 0.1
+            -- Hitung delay berdasarkan speed multiplier
+            local baseDelay = 0.08
             local waitTime = baseDelay / math.max(fishingSpeedMultiplier, 1)
-            
-            -- Minimum 0.001 detik untuk menghindari crash
             waitTime = math.max(waitTime, 0.001)
             
             task.wait(waitTime)
@@ -563,12 +587,18 @@ local function setupFishCaughtHandler()
             -- Start fishing dengan request count berdasarkan multiplier
             startFishing()
             
+            -- Extra completion spam untuk memastikan ikan tertarik
+            task.spawn(function()
+                for i = 1, math.floor(10 + fishingSpeedMultiplier * 2) do
+                    safeFire(REFishingCompleted)
+                end
+            end)
+            
             -- Extra boost untuk speed tinggi
             if fishingSpeedMultiplier >= 5 then
                 task.spawn(function()
                     for i = 1, math.floor(fishingSpeedMultiplier) do
                         safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
-                        safeFire(REFishingCompleted)
                     end
                 end)
             end
@@ -576,17 +606,18 @@ local function setupFishCaughtHandler()
     end)
 end
 
--- Continuous spam untuk speed maksimal
+-- Continuous spam untuk memastikan minigame selesai
 local function continuousSpamLoop()
     while running do
         -- Spam interval berdasarkan speed multiplier
-        local spamInterval = 0.5 / math.max(fishingSpeedMultiplier, 1)
-        spamInterval = math.max(spamInterval, 0.1)
+        local spamInterval = 0.3 / math.max(fishingSpeedMultiplier, 1)
+        spamInterval = math.max(spamInterval, 0.05)
         
-        local spamCount = math.floor(1 + fishingSpeedMultiplier)
+        -- Spam completion dan request
+        local spamCount = math.floor(2 + fishingSpeedMultiplier)
         for i = 1, spamCount do
-            safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
             safeFire(REFishingCompleted)
+            safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
         end
         
         task.wait(spamInterval)
@@ -596,8 +627,9 @@ end
 local function fishingCycle()
     lastFishTime = tick()
     
-    -- Setup dengan speed multiplier terbaru
+    -- Setup handlers
     setupFishCaughtHandler()
+    setupMinigameHandler() -- CRITICAL untuk menarik ikan
     spamCompletedLoop()
     
     task.spawn(equipToolLoop)
@@ -609,7 +641,7 @@ local function fishingCycle()
     task.wait(0.2)
     startFishing()
     
-    showNotification("Auto Fishing", "Started at x" .. fishingSpeedMultiplier .. " speed!")
+    showNotification("Auto Fishing", "Started at " .. fishingSpeedMultiplier .. "x speed!")
     
     while running do
         task.wait(1)
@@ -624,6 +656,10 @@ local function fishingCycle()
         completionConnection:Disconnect()
         completionConnection = nil
     end
+    if minigameConnection then
+        minigameConnection:Disconnect()
+        minigameConnection = nil
+    end
 end
 
 -- ===============================================
@@ -632,68 +668,49 @@ end
 
 Auto:Divider()
 
--- SLIDER untuk speed multiplier (lebih intuitif)
-local speedSlider = Auto:Slider({
+-- DROPDOWN untuk speed selection
+local speedDropdown = Auto:Dropdown({
     Title = "Fishing Speed",
-    Desc = "1x = Normal, 9x = Ultra Fast",
-    Min = 1,
-    Max = 10,
-    Default = 1,
-    Callback = function(value)
-        fishingSpeedMultiplier = value
-        showNotification("Speed Updated", "Speed set to x" .. value)
+    Desc = "Select fishing speed multiplier",
+    Options = {
+        "1x - Normal Speed",
+        "2x - Fast",
+        "3x - Very Fast", 
+        "5x - Ultra Fast",
+        "7x - Extreme",
+        "9x - Maximum",
+        "10x - Experimental"
+    },
+    Default = "1x - Normal Speed",
+    Callback = function(selected)
+        -- Extract number from selected option
+        local speed = tonumber(selected:match("^(%d+)x"))
+        if speed then
+            fishingSpeedMultiplier = speed
+            showNotification("Speed Updated", "Speed set to " .. speed .. "x")
+        end
     end
 })
 
--- INPUT sebagai alternatif
-fishingSpeedInput = Auto:Input({
-    Title = "Custom Speed Value",
+Auto:Space()
+
+-- INPUT sebagai alternatif untuk custom value
+local customSpeedInput = Auto:Input({
+    Title = "Custom Speed (Optional)",
     Type = "Input",
-    Desc = "Or enter custom speed (1-20)",
-    Default = "1",
-    Placeholder = "Enter 1-20",
+    Desc = "Enter custom speed value (1-15)",
+    Default = "",
+    Placeholder = "e.g., 8",
     Callback = function(text) 
         local value = tonumber(text)
         
-        if value and value >= 1 and value <= 20 then
+        if value and value >= 1 and value <= 15 then
             fishingSpeedMultiplier = value
-            speedSlider:SetValue(math.min(value, 10))
-            showNotification("Speed Updated", "Speed set to x" .. value)
-        else
-            showNotification("Warning", "Please enter 1-20")
+            showNotification("Speed Updated", "Custom speed set to " .. value .. "x")
+        elseif text ~= "" then
+            showNotification("Warning", "Please enter 1-15")
         end
     end,
-})
-
--- Quick preset buttons
-Auto:Button({
-    Title = "Normal Speed (1x)",
-    Desc = "Set to normal fishing speed",
-    Callback = function()
-        fishingSpeedMultiplier = 1
-        speedSlider:SetValue(1)
-        showNotification("Speed", "Set to 1x (Normal)")
-    end
-})
-
-Auto:Button({
-    Title = "Fast Speed (5x)",
-    Desc = "Set to fast fishing speed",
-    Callback = function()
-        fishingSpeedMultiplier = 5
-        speedSlider:SetValue(5)
-        showNotification("Speed", "Set to 5x (Fast)")
-    end
-})
-
-Auto:Button({
-    Title = "Ultra Fast (9x)",
-    Desc = "Set to maximum recommended speed",
-    Callback = function()
-        fishingSpeedMultiplier = 9
-        speedSlider:SetValue(9)
-        showNotification("Speed", "Set to 9x (Ultra Fast!)")
-    end
 })
 
 Auto:Space()
@@ -702,7 +719,7 @@ Auto:Divider()
 autoFishingToggle = Auto:Toggle({
     Title = "Auto Fishing", 
     Type = "Toggle",
-    Desc = "Start/Stop Auto Fishing with current speed",
+    Desc = "Start/Stop Auto Fishing with selected speed",
     Default = false,
     Callback = function(state) 
         running = state
@@ -722,6 +739,10 @@ autoFishingToggle = Auto:Toggle({
                 completionConnection:Disconnect()
                 completionConnection = nil
             end
+            if minigameConnection then
+                minigameConnection:Disconnect()
+                minigameConnection = nil
+            end
         end
     end
 })
@@ -731,7 +752,7 @@ Auto:Space()
 -- Info paragraph
 Auto:Paragraph({
     Title = "💡 Speed Guide",
-    Content = "1x = Normal speed\n3x-5x = Fast (recommended)\n7x-9x = Ultra fast\n10x+ = Experimental (may be unstable)"
+    Content = "1x-2x = Stable & Safe\n3x-5x = Fast (Recommended)\n7x-9x = Very Fast\n10x+ = Experimental (may be unstable)\n\nNote: Higher speed = faster fishing but may be less stable on slow connections."
 })
 
 Auto:Divider()
