@@ -393,6 +393,8 @@ local equipped = false
 local fishCount = 0
 local consecutiveSlowFish = 0
 local fishCaughtConnection = nil
+local minigameConnection = nil
+local completionSpamConnection = nil
 
 -- Performance tracking
 local performanceMetrics = {
@@ -445,9 +447,8 @@ end
 
 local function equipTool()
     if not equipped then
-        for i = 1, 2 do
+        for i = 1, 3 do
             safeFire(REEquipToolFromHotbar, 1)
-            task.wait(0.05)
         end
         equipped = true
     end
@@ -455,84 +456,109 @@ end
 
 local function resetTool()
     safeFire(REUnequipToolFromHotbar)
-    task.wait(0.1)
+    task.wait(0.05)
     equipped = false
     equipTool()
 end
 
--- Improved fishing initiation with faster execution
+-- Ultra fast fishing initiation
 local function startFishing()
-    -- Charge rod
+    -- Charge rod with no delay
     safeInvoke(RFChargeFishingRod, 2)
-    task.wait(0.05)
     
-    -- Multiple rapid requests to ensure it registers
-    for i = 1, 3 do
+    -- Spam requests immediately for instant start
+    for i = 1, 5 do
         safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
-        if i < 3 then
-            task.wait(0.03)
-        end
     end
 end
 
 -- Aggressive force reset when stuck
 local function forceResetFishing()
-    consecutiveSlowFish = consecutiveSlowFish + 1
-    
-    -- Cancel current fishing
-    for i = 1, 3 do
+    -- Cancel current fishing multiple times
+    for i = 1, 5 do
         safeInvoke(RFCancelFishingInputs)
-        task.wait(0.05)
     end
     
-    -- Reset tool
+    -- Quick reset
     resetTool()
-    task.wait(0.2)
+    task.wait(0.1)
     
     -- Restart fishing immediately
     startFishing()
     lastFishTime = tick()
 end
 
--- Optimized completion spam loop using RenderStepped for maximum speed
-local function spamCompletedLoop()
-    local connection
-    connection = RunService.RenderStepped:Connect(function()
+-- Ultra aggressive completion spam using RenderStepped
+local function startCompletionSpam()
+    if completionSpamConnection then
+        completionSpamConnection:Disconnect()
+    end
+    
+    completionSpamConnection = RunService.RenderStepped:Connect(function()
         if not running then
-            connection:Disconnect()
+            if completionSpamConnection then
+                completionSpamConnection:Disconnect()
+            end
             return
         end
+        
+        -- Spam completion every frame for maximum speed
         safeFire(REFishingCompleted)
     end)
 end
 
--- Faster equipment maintenance
+-- Continuous equipment spam
 local function equipToolLoop()
     while running do
-        if not equipped then
-            equipTool()
-        end
+        equipTool()
         safeFire(REEquipToolFromHotbar, 1)
-        task.wait(1.5)
+        task.wait(0.5)
     end
 end
 
--- Improved stuck detection with adaptive timing
+-- Ultra aggressive minigame handler
+local function setupMinigameHandler()
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    if minigameConnection then
+        minigameConnection:Disconnect()
+    end
+    
+    -- Monitor continuously with RenderStepped for instant detection
+    minigameConnection = RunService.RenderStepped:Connect(function()
+        if not running then
+            if minigameConnection then
+                minigameConnection:Disconnect()
+            end
+            return
+        end
+        
+        local fishingMinigame = playerGui:FindFirstChild("FishingMinigame")
+        
+        if fishingMinigame and fishingMinigame.Enabled then
+            -- Minigame detected - spam completion aggressively
+            for i = 1, 20 do
+                safeFire(REFishingCompleted)
+            end
+        end
+    end)
+end
+
+-- Improved stuck detection with faster response
 local function fishCheckLoop()
     while running do
         local currentTime = tick()
         local timeSinceLastFish = currentTime - lastFishTime
         
-        -- Aggressive stuck detection
-        if timeSinceLastFish >= 5 and lastFishTime > 0 then
-            -- Force reset if no fish caught in 5 seconds
+        -- Ultra aggressive stuck detection - 3 seconds
+        if timeSinceLastFish >= 3 and lastFishTime > 0 then
             forceResetFishing()
             
-        elseif timeSinceLastFish >= 2.5 and lastFishTime > 0 then
-            -- Speed boost - send additional requests
-            for i = 1, 2 do
+        elseif timeSinceLastFish >= 1.5 and lastFishTime > 0 then
+            -- Speed boost after 1.5 seconds
+            for i = 1, 5 do
                 safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
-                task.wait(0.05)
+                safeFire(REFishingCompleted)
             end
         end
         
@@ -543,51 +569,26 @@ local function fishCheckLoop()
             performanceMetrics.lastCheckTime = currentTime
             
             -- Auto-optimize if performance is low
-            if performanceMetrics.fishPerMinute < 30 then
+            if performanceMetrics.fishPerMinute < 40 then
                 forceResetFishing()
             end
         end
         
-        task.wait(0.5)
+        task.wait(0.3)
     end
 end
 
 -- Periodic maintenance reset
 local function periodicResetLoop()
     while running do
-        task.wait(180) -- Every 3 minutes
+        task.wait(120) -- Every 2 minutes
         if running then
-            resetTool()
-            task.wait(0.3)
-            startFishing()
+            forceResetFishing()
         end
     end
 end
 
--- Fishing minigame handler - auto complete when fish bites
-local function setupMinigameHandler()
-    local playerGui = player:WaitForChild("PlayerGui")
-    
-    -- Monitor for minigame GUI appearance
-    task.spawn(function()
-        while running do
-            local fishingMinigame = playerGui:FindFirstChild("FishingMinigame")
-            
-            if fishingMinigame and fishingMinigame.Enabled then
-                -- Minigame detected, spam completion
-                for i = 1, 10 do
-                    if not running then break end
-                    safeFire(REFishingCompleted)
-                    task.wait(0.05)
-                end
-            end
-            
-            task.wait(0.1)
-        end
-    end)
-end
-
--- Optimized fish caught handler
+-- Optimized fish caught handler with immediate restart
 local function setupFishCaughtHandler()
     if fishCaughtConnection then
         fishCaughtConnection:Disconnect()
@@ -602,28 +603,29 @@ local function setupFishCaughtHandler()
         fishCount = fishCount + 1
         performanceMetrics.totalFish = performanceMetrics.totalFish + 1
         
-        -- Detect slow fishing
-        if timeSinceLastFish > 2 then
-            consecutiveSlowFish = consecutiveSlowFish + 1
-        else
-            consecutiveSlowFish = 0
-        end
-        
-        -- Immediate restart with minimal delay
+        -- CRITICAL: Immediate restart with NO delay for maximum speed
         if running then
-            task.wait(0.05) -- Reduced delay for faster cycling
+            -- Instant restart - no wait
             startFishing()
             
-            -- Extra boost if fish was slow
-            if timeSinceLastFish > 1.5 then
-                task.wait(0.05)
-                for i = 1, 2 do
+            -- Double boost for next catch
+            task.spawn(function()
+                for i = 1, 3 do
                     safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
-                    task.wait(0.03)
+                    safeFire(REFishingCompleted)
                 end
-            end
+            end)
         end
     end)
+end
+
+-- Continuous fishing spam to prevent stuck
+local function continuousFishingSpam()
+    while running do
+        -- Keep spamming requests to ensure fishing never stops
+        safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
+        task.wait(0.5)
+    end
 end
 
 -- Main fishing cycle
@@ -634,21 +636,22 @@ local function fishingCycle()
     performanceMetrics.lastCheckTime = tick()
     performanceMetrics.totalFish = 0
     
-    -- Setup handler first
+    -- Setup all handlers and loops
     setupFishCaughtHandler()
+    setupMinigameHandler()
+    startCompletionSpam()
     
-    -- Start all loops
-    task.spawn(spamCompletedLoop)
     task.spawn(equipToolLoop)
     task.spawn(fishCheckLoop)
     task.spawn(periodicResetLoop)
+    task.spawn(continuousFishingSpam)
     
-    -- Initial equip and start
+    -- Initial setup
     equipTool()
-    task.wait(0.3)
+    task.wait(0.2)
     startFishing()
     
-    showNotification("Instant Fishing", "Started with optimized speed!")
+    showNotification("Ultra Fast Fishing", "Started with maximum speed!")
     
     -- Keep running
     while running do
@@ -660,12 +663,20 @@ local function fishingCycle()
         fishCaughtConnection:Disconnect()
         fishCaughtConnection = nil
     end
+    if minigameConnection then
+        minigameConnection:Disconnect()
+        minigameConnection = nil
+    end
+    if completionSpamConnection then
+        completionSpamConnection:Disconnect()
+        completionSpamConnection = nil
+    end
 end
 
 autoFishingToggle = Auto:Toggle({
     Title = "Auto Fishing", 
     Type = "Toggle",
-    Desc = "OPTIMIZED INSTANT FISHING - 60+ FISH/MIN",
+    Desc = "ULTRA FAST INSTANT FISHING - 80+ FISH/MIN",
     Default = false,
     Callback = function(state) 
         running = state
@@ -683,8 +694,16 @@ autoFishingToggle = Auto:Toggle({
                 fishCaughtConnection:Disconnect()
                 fishCaughtConnection = nil
             end
+            if minigameConnection then
+                minigameConnection:Disconnect()
+                minigameConnection = nil
+            end
+            if completionSpamConnection then
+                completionSpamConnection:Disconnect()
+                completionSpamConnection = nil
+            end
             
-            showNotification("Instant Fishing", "Stopped. Total fish: " .. fishCount)
+            showNotification("Ultra Fast Fishing", "Stopped. Total fish: " .. fishCount)
         end
     end
 })
