@@ -386,7 +386,7 @@ local REUnequipToolFromHotbar = ReplicatedStorage.Packages._Index["sleitnick_net
 local RFCancelFishingInputs = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/CancelFishingInputs"]
 local REFishCaught = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FishCaught"]
 
--- Optimized variables
+-- Variables
 local lastFishTime = 0
 local running = false
 local equipped = false
@@ -394,13 +394,13 @@ local fishCount = 0
 local consecutiveSlowFish = 0
 local fishCaughtConnection = nil
 
--- Performance tracking
 local performanceMetrics = {
     lastCheckTime = 0,
     fishPerMinute = 0,
     totalFish = 0
 }
 
+-- Safe remote helpers
 local function safeFire(remote, arg)
     if not remote then return false end
     local ok = pcall(function()
@@ -427,22 +427,16 @@ local function safeInvoke(remote, arg1, arg2)
     return ok and res or nil
 end
 
+-- Notification helper
 local function showNotification(title, content)
     if WindUI and WindUI.Notify then
-        WindUI:Notify({
-            Title = title,
-            Content = content,
-            Duration = 3,
-        })
+        WindUI:Notify({Title = title, Content = content, Duration = 3})
     elseif Auto and Auto.Notify then
-        Auto:Notify({
-            Title = title,
-            Content = content,
-            Duration = 3,
-        })
+        Auto:Notify({Title = title, Content = content, Duration = 3})
     end
 end
 
+-- Equip tool
 local function equipTool()
     if not equipped then
         for i = 1, 2 do
@@ -460,108 +454,38 @@ local function resetTool()
     equipTool()
 end
 
-local function startFishing()
-    if not equipped then
-        equipTool()
-        task.wait(0.1)
-    end
+-- Full fishing cycle (ensures rod ready every pancingan)
+local function fullFishingCycle()
+    if not running then return end
+
+    -- Cancel any fishing
+    safeInvoke(RFCancelFishingInputs)
+    task.wait(0.1)
+
+    -- Unequip & re-equip rod
+    safeFire(REUnequipToolFromHotbar)
+    task.wait(0.1)
+    safeFire(REEquipToolFromHotbar, 1)
+    task.wait(0.1)
 
     -- Charge rod
     safeInvoke(RFChargeFishingRod, 2)
     task.wait(0.05)
-    
-    -- Multiple rapid requests to ensure it registers
+
+    -- Request minigame
     for i = 1, 3 do
         safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
-        if i < 3 then
-            task.wait(0.03)
-        end
-    end
-end
-
-local function forceResetFishing()
-    consecutiveSlowFish = consecutiveSlowFish + 1
-    
-    -- Cancel current fishing
-    for i = 1, 3 do
-        safeInvoke(RFCancelFishingInputs)
         task.wait(0.05)
     end
-    
-    resetTool()
-    task.wait(0.2)
-    startFishing()
-    lastFishTime = tick()
 end
 
--- Spam completed loop only for idle rod
-local function spamCompletedLoop()
-    local connection
-    connection = RunService.RenderStepped:Connect(function()
-        if not running then
-            connection:Disconnect()
-            return
-        end
-        safeFire(REFishingCompleted)
-    end)
-end
-
-local function equipToolLoop()
-    while running do
-        if not equipped then
-            equipTool()
-        end
-        safeFire(REEquipToolFromHotbar, 1)
-        task.wait(1.5)
-    end
-end
-
-local function fishCheckLoop()
-    while running do
-        local currentTime = tick()
-        local timeSinceLastFish = currentTime - lastFishTime
-        
-        if timeSinceLastFish >= 5 and lastFishTime > 0 then
-            forceResetFishing()
-        elseif timeSinceLastFish >= 2.5 and lastFishTime > 0 then
-            for i = 1, 2 do
-                safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
-                task.wait(0.05)
-            end
-        end
-        
-        if currentTime - performanceMetrics.lastCheckTime >= 60 then
-            performanceMetrics.fishPerMinute = performanceMetrics.totalFish
-            performanceMetrics.totalFish = 0
-            performanceMetrics.lastCheckTime = currentTime
-            
-            if performanceMetrics.fishPerMinute < 30 then
-                forceResetFishing()
-            end
-        end
-        
-        task.wait(0.5)
-    end
-end
-
-local function periodicResetLoop()
-    while running do
-        task.wait(180)
-        if running then
-            resetTool()
-            task.wait(0.3)
-            startFishing()
-        end
-    end
-end
-
--- Minigame handler
+-- Spam completed only when minigame active
 local function setupMinigameHandler()
     local playerGui = player:WaitForChild("PlayerGui")
     task.spawn(function()
         while running do
-            local fishingMinigame = playerGui:FindFirstChild("FishingMinigame")
-            if fishingMinigame and fishingMinigame.Enabled then
+            local minigame = playerGui:FindFirstChild("FishingMinigame")
+            if minigame and minigame.Enabled then
                 for i = 1, 15 do
                     if not running then break end
                     safeFire(REFishingCompleted)
@@ -584,69 +508,108 @@ local function setupFishCaughtHandler()
 
         fishCount = fishCount + 1
         performanceMetrics.totalFish = performanceMetrics.totalFish + 1
-
         lastFishTime = tick()
         consecutiveSlowFish = 0
 
-        task.wait(0.1)
-        startFishing()
+        -- Delay minimal agar server register
+        task.spawn(function()
+            task.wait(0.12)
+            fullFishingCycle()
+        end)
     end)
 end
 
--- Main cycle
+-- Anti-stuck / check loop
+local function fishCheckLoop()
+    while running do
+        local currentTime = tick()
+        local timeSinceLastFish = currentTime - lastFishTime
+
+        if timeSinceLastFish >= 5 and lastFishTime > 0 then
+            -- Force reset jika stuck
+            fullFishingCycle()
+        elseif timeSinceLastFish >= 2.5 and lastFishTime > 0 then
+            for i = 1, 2 do
+                safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
+                task.wait(0.05)
+            end
+        end
+
+        if currentTime - performanceMetrics.lastCheckTime >= 60 then
+            performanceMetrics.fishPerMinute = performanceMetrics.totalFish
+            performanceMetrics.totalFish = 0
+            performanceMetrics.lastCheckTime = currentTime
+        end
+
+        task.wait(0.5)
+    end
+end
+
+-- Periodic reset to prevent rod hang
+local function periodicResetLoop()
+    while running do
+        task.wait(180)
+        if running then
+            resetTool()
+            task.wait(0.15)
+            fullFishingCycle()
+        end
+    end
+end
+
+-- Main fishing cycle
 local function fishingCycle()
     lastFishTime = tick()
     fishCount = 0
     consecutiveSlowFish = 0
     performanceMetrics.lastCheckTime = tick()
     performanceMetrics.totalFish = 0
-    
+
     setupFishCaughtHandler()
     setupMinigameHandler()
-    
-    task.spawn(spamCompletedLoop)
-    task.spawn(equipToolLoop)
+
     task.spawn(fishCheckLoop)
     task.spawn(periodicResetLoop)
-    
+
     equipTool()
-    task.wait(0.3)
-    startFishing()
-    
-    showNotification("Instant Fishing", "Started with optimized speed!")
-    
+    task.wait(0.15)
+    fullFishingCycle()
+
+    showNotification("Instant Fishing", "Started with optimal speed!")
+
     while running do
         task.wait(1)
     end
-    
+
     if fishCaughtConnection then
         fishCaughtConnection:Disconnect()
         fishCaughtConnection = nil
     end
 end
 
+-- UI toggle
 autoFishingToggle = Auto:Toggle({
     Title = "Auto Fishing", 
     Type = "Toggle",
     Desc = "OPTIMIZED INSTANT FISHING - 60+ FISH/MIN",
     Default = false,
-    Callback = function(state) 
+    Callback = function(state)
         running = state
         autoFishingRunning = state 
-        
+
         if running then
             task.spawn(fishingCycle)
         else
             safeInvoke(RFCancelFishingInputs)
             safeFire(REUnequipToolFromHotbar)
             equipped = false
-            
+
             if fishCaughtConnection then
                 fishCaughtConnection:Disconnect()
                 fishCaughtConnection = nil
             end
-            
-            showNotification("Instant Fishing", "Stopped. Total fish: " .. fishCount)
+
+            showNotification("Instant Fishing", "Stopped. Total fish: "..fishCount)
         end
     end
 })
@@ -655,248 +618,7 @@ Auto:Space()
 Auto:Divider()
 
 
--- Visual Luck Changer Section
-local LuckSection = Auto:Section({ 
-    Title = "Luck Modifier (Visual)",
-})
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
--- Variables
-local originalLuckValue = nil
-local luckModifierEnabled = false
-local customLuckValue = 100
-local luckUpdateConnection = nil
-
--- Function to find and modify luck display
-local function findLuckDisplay()
-    -- Common GUI paths for luck display
-    local possiblePaths = {
-        playerGui:FindFirstChild("ScreenGui"),
-        playerGui:FindFirstChild("MainGui"),
-        playerGui:FindFirstChild("FishingGui"),
-        playerGui:FindFirstChild("StatsGui"),
-        playerGui:FindFirstChild("PlayerInfo"),
-    }
-    
-    local function searchForLuck(parent)
-        if not parent then return nil end
-        
-        for _, child in ipairs(parent:GetDescendants()) do
-            if child:IsA("TextLabel") or child:IsA("TextBox") then
-                local text = child.Text:lower()
-                -- Check if it contains luck-related text
-                if text:match("luck") or text:match("lucky") or text:match("fortune") then
-                    return child
-                end
-            end
-        end
-        return nil
-    end
-    
-    -- Search through all possible GUIs
-    for _, gui in ipairs(possiblePaths) do
-        local luckLabel = searchForLuck(gui)
-        if luckLabel then
-            return luckLabel
-        end
-    end
-    
-    -- Deep search in all PlayerGui if not found
-    return searchForLuck(playerGui)
-end
-
--- Function to update luck display
-local function updateLuckDisplay()
-    if not luckModifierEnabled then return end
-    
-    local luckLabel = findLuckDisplay()
-    
-    if luckLabel then
-        -- Save original value first time
-        if not originalLuckValue then
-            originalLuckValue = luckLabel.Text
-        end
-        
-        -- Update with custom luck value
-        local originalText = luckLabel.Text
-        
-        -- Try to extract and replace the number
-        local modifiedText = originalText:gsub("%d+", tostring(customLuckValue))
-        
-        -- If no number found, just append the luck value
-        if modifiedText == originalText then
-            if originalText:lower():match("luck") then
-                modifiedText = originalText:gsub("(%d*%.?%d+)", tostring(customLuckValue))
-            else
-                modifiedText = "Luck: " .. tostring(customLuckValue)
-            end
-        end
-        
-        luckLabel.Text = modifiedText
-    end
-end
-
--- Continuous update loop
-local function startLuckModifier()
-    if luckUpdateConnection then
-        luckUpdateConnection:Disconnect()
-    end
-    
-    luckUpdateConnection = game:GetService("RunService").RenderStepped:Connect(function()
-        if luckModifierEnabled then
-            updateLuckDisplay()
-        end
-    end)
-end
-
--- Stop luck modifier
-local function stopLuckModifier()
-    if luckUpdateConnection then
-        luckUpdateConnection:Disconnect()
-        luckUpdateConnection = nil
-    end
-    
-    -- Restore original value
-    if originalLuckValue then
-        local luckLabel = findLuckDisplay()
-        if luckLabel then
-            luckLabel.Text = originalLuckValue
-        end
-        originalLuckValue = nil
-    end
-end
-
--- Slider for custom luck value
-local LuckSlider = LuckSection:Slider({
-    Title = "Luck Value (Visual)",
-    Desc = "Set your visual luck value (0-1000)",
-    Min = 0,
-    Max = 1000,
-    Default = 100,
-    Callback = function(value)
-        customLuckValue = value
-        if luckModifierEnabled then
-            updateLuckDisplay()
-        end
-    end
-})
-
--- Toggle for luck modifier
-local LuckToggle = LuckSection:Toggle({
-    Title = "Enable Visual Luck",
-    Type = "Toggle",
-    Desc = "Modify luck display (VISUAL ONLY)",
-    Default = false,
-    Callback = function(state)
-        luckModifierEnabled = state
-        
-        if state then
-            startLuckModifier()
-            if WindUI and WindUI.Notify then
-                WindUI:Notify({
-                    Title = "Luck Modifier",
-                    Content = "Visual luck set to " .. customLuckValue,
-                    Duration = 3,
-                })
-            elseif Auto and Auto.Notify then
-                Auto:Notify({
-                    Title = "Luck Modifier",
-                    Content = "Visual luck set to " .. customLuckValue,
-                    Duration = 3,
-                })
-            end
-        else
-            stopLuckModifier()
-            if WindUI and WindUI.Notify then
-                WindUI:Notify({
-                    Title = "Luck Modifier",
-                    Content = "Restored original luck display",
-                    Duration = 3,
-                })
-            elseif Auto and Auto.Notify then
-                Auto:Notify({
-                    Title = "Luck Modifier",
-                    Content = "Restored original luck display",
-                    Duration = 3,
-                })
-            end
-        end
-    end
-})
-
--- Quick preset buttons
-LuckSection:Button({
-    Title = "Set Luck: 500",
-    Desc = "Quick set to 500",
-    Callback = function()
-        customLuckValue = 500
-        LuckSlider:SetValue(500)
-        updateLuckDisplay()
-    end
-})
-
-LuckSection:Button({
-    Title = "Set Luck: 999",
-    Desc = "Quick set to max visual",
-    Callback = function()
-        customLuckValue = 999
-        LuckSlider:SetValue(999)
-        updateLuckDisplay()
-    end
-})
-
--- Advanced: Hook into stats if available
-local function tryHookPlayerStats()
-    task.spawn(function()
-        -- Try to find player stats folder
-        local statsFolder = player:FindFirstChild("PlayerStats") or 
-                          player:FindFirstChild("Stats") or 
-                          player:FindFirstChild("leaderstats")
-        
-        if statsFolder then
-            local luckStat = statsFolder:FindFirstChild("Luck") or 
-                           statsFolder:FindFirstChild("Lucky") or
-                           statsFolder:FindFirstChild("Fortune")
-            
-            if luckStat and luckStat:IsA("IntValue") or luckStat:IsA("NumberValue") then
-                -- Save original
-                if not originalLuckValue then
-                    originalLuckValue = luckStat.Value
-                end
-                
-                -- Monitor and override display
-                luckStat:GetPropertyChangedSignal("Value"):Connect(function()
-                    if luckModifierEnabled then
-                        -- Don't actually change the value, just the display
-                        task.wait()
-                        updateLuckDisplay()
-                    end
-                end)
-            end
-        end
-    end)
-end
-
--- Try to hook stats on player load
-tryHookPlayerStats()
-
--- Also try when character spawns
-player.CharacterAdded:Connect(function()
-    task.wait(2) -- Wait for stats to load
-    tryHookPlayerStats()
-end)
-
-Auto:Space()
-Auto:Divider()
-
--- Info section
-LuckSection:Paragraph({
-    Title = "⚠️ Important Info",
-    Content = "This is VISUAL ONLY modification. It only changes what YOU see on your screen. The actual luck value on the server remains unchanged. This is useful for screenshots or personal satisfaction."
-})
 
 local Section = Auto:Section({ 
     Title = "Teleport Feature",
@@ -2421,6 +2143,249 @@ local AnimatorToggle = Setting:Toggle({
             end
         end
     end
+})
+
+-- Visual Luck Changer Section
+local LuckSection = Auto:Section({ 
+    Title = "Luck Modifier (Visual)",
+})
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Variables
+local originalLuckValue = nil
+local luckModifierEnabled = false
+local customLuckValue = 100
+local luckUpdateConnection = nil
+
+-- Function to find and modify luck display
+local function findLuckDisplay()
+    -- Common GUI paths for luck display
+    local possiblePaths = {
+        playerGui:FindFirstChild("ScreenGui"),
+        playerGui:FindFirstChild("MainGui"),
+        playerGui:FindFirstChild("FishingGui"),
+        playerGui:FindFirstChild("StatsGui"),
+        playerGui:FindFirstChild("PlayerInfo"),
+    }
+    
+    local function searchForLuck(parent)
+        if not parent then return nil end
+        
+        for _, child in ipairs(parent:GetDescendants()) do
+            if child:IsA("TextLabel") or child:IsA("TextBox") then
+                local text = child.Text:lower()
+                -- Check if it contains luck-related text
+                if text:match("luck") or text:match("lucky") or text:match("fortune") then
+                    return child
+                end
+            end
+        end
+        return nil
+    end
+    
+    -- Search through all possible GUIs
+    for _, gui in ipairs(possiblePaths) do
+        local luckLabel = searchForLuck(gui)
+        if luckLabel then
+            return luckLabel
+        end
+    end
+    
+    -- Deep search in all PlayerGui if not found
+    return searchForLuck(playerGui)
+end
+
+-- Function to update luck display
+local function updateLuckDisplay()
+    if not luckModifierEnabled then return end
+    
+    local luckLabel = findLuckDisplay()
+    
+    if luckLabel then
+        -- Save original value first time
+        if not originalLuckValue then
+            originalLuckValue = luckLabel.Text
+        end
+        
+        -- Update with custom luck value
+        local originalText = luckLabel.Text
+        
+        -- Try to extract and replace the number
+        local modifiedText = originalText:gsub("%d+", tostring(customLuckValue))
+        
+        -- If no number found, just append the luck value
+        if modifiedText == originalText then
+            if originalText:lower():match("luck") then
+                modifiedText = originalText:gsub("(%d*%.?%d+)", tostring(customLuckValue))
+            else
+                modifiedText = "Luck: " .. tostring(customLuckValue)
+            end
+        end
+        
+        luckLabel.Text = modifiedText
+    end
+end
+
+-- Continuous update loop
+local function startLuckModifier()
+    if luckUpdateConnection then
+        luckUpdateConnection:Disconnect()
+    end
+    
+    luckUpdateConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if luckModifierEnabled then
+            updateLuckDisplay()
+        end
+    end)
+end
+
+-- Stop luck modifier
+local function stopLuckModifier()
+    if luckUpdateConnection then
+        luckUpdateConnection:Disconnect()
+        luckUpdateConnection = nil
+    end
+    
+    -- Restore original value
+    if originalLuckValue then
+        local luckLabel = findLuckDisplay()
+        if luckLabel then
+            luckLabel.Text = originalLuckValue
+        end
+        originalLuckValue = nil
+    end
+end
+
+-- Slider for custom luck value
+local LuckSlider = LuckSection:Slider({
+    Title = "Luck Value (Visual)",
+    Desc = "Set your visual luck value (0-1000)",
+    Min = 0,
+    Max = 1000,
+    Default = 100,
+    Callback = function(value)
+        customLuckValue = value
+        if luckModifierEnabled then
+            updateLuckDisplay()
+        end
+    end
+})
+
+-- Toggle for luck modifier
+local LuckToggle = LuckSection:Toggle({
+    Title = "Enable Visual Luck",
+    Type = "Toggle",
+    Desc = "Modify luck display (VISUAL ONLY)",
+    Default = false,
+    Callback = function(state)
+        luckModifierEnabled = state
+        
+        if state then
+            startLuckModifier()
+            if WindUI and WindUI.Notify then
+                WindUI:Notify({
+                    Title = "Luck Modifier",
+                    Content = "Visual luck set to " .. customLuckValue,
+                    Duration = 3,
+                })
+            elseif Auto and Auto.Notify then
+                Auto:Notify({
+                    Title = "Luck Modifier",
+                    Content = "Visual luck set to " .. customLuckValue,
+                    Duration = 3,
+                })
+            end
+        else
+            stopLuckModifier()
+            if WindUI and WindUI.Notify then
+                WindUI:Notify({
+                    Title = "Luck Modifier",
+                    Content = "Restored original luck display",
+                    Duration = 3,
+                })
+            elseif Auto and Auto.Notify then
+                Auto:Notify({
+                    Title = "Luck Modifier",
+                    Content = "Restored original luck display",
+                    Duration = 3,
+                })
+            end
+        end
+    end
+})
+
+-- Quick preset buttons
+LuckSection:Button({
+    Title = "Set Luck: 500",
+    Desc = "Quick set to 500",
+    Callback = function()
+        customLuckValue = 500
+        LuckSlider:SetValue(500)
+        updateLuckDisplay()
+    end
+})
+
+LuckSection:Button({
+    Title = "Set Luck: 999",
+    Desc = "Quick set to max visual",
+    Callback = function()
+        customLuckValue = 999
+        LuckSlider:SetValue(999)
+        updateLuckDisplay()
+    end
+})
+
+-- Advanced: Hook into stats if available
+local function tryHookPlayerStats()
+    task.spawn(function()
+        -- Try to find player stats folder
+        local statsFolder = player:FindFirstChild("PlayerStats") or 
+                          player:FindFirstChild("Stats") or 
+                          player:FindFirstChild("leaderstats")
+        
+        if statsFolder then
+            local luckStat = statsFolder:FindFirstChild("Luck") or 
+                           statsFolder:FindFirstChild("Lucky") or
+                           statsFolder:FindFirstChild("Fortune")
+            
+            if luckStat and luckStat:IsA("IntValue") or luckStat:IsA("NumberValue") then
+                -- Save original
+                if not originalLuckValue then
+                    originalLuckValue = luckStat.Value
+                end
+                
+                -- Monitor and override display
+                luckStat:GetPropertyChangedSignal("Value"):Connect(function()
+                    if luckModifierEnabled then
+                        -- Don't actually change the value, just the display
+                        task.wait()
+                        updateLuckDisplay()
+                    end
+                end)
+            end
+        end
+    end)
+end
+
+-- Try to hook stats on player load
+tryHookPlayerStats()
+
+-- Also try when character spawns
+player.CharacterAdded:Connect(function()
+    task.wait(2) -- Wait for stats to load
+    tryHookPlayerStats()
+end)
+
+Auto:Space()
+Auto:Divider()
+
+-- Info section
+LuckSection:Paragraph({
+    Title = "⚠️ Important Info",
+    Content = "This is VISUAL ONLY modification. It only changes what YOU see on your screen. The actual luck value on the server remains unchanged. This is useful for screenshots or personal satisfaction."
 })
 
 local function Main()
