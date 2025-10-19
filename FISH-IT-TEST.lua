@@ -366,17 +366,19 @@ end)
 print("ANTI-AFK : ON By HellZone")
 
 
-local Section = Auto:Section({
+local Section = Auto:Section({ 
     Title = "Main Feature",
 })
 
--- Services
-local RunService = game:GetService("RunService")
+local autoFishingRunning = false
+local autoFishingToggle
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
 local player = Players.LocalPlayer
 
--- Remotes
 local REEquipToolFromHotbar = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipToolFromHotbar"]
 local RFChargeFishingRod = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/ChargeFishingRod"]
 local RFRequestFishingMinigameStarted = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/RequestFishingMinigameStarted"]
@@ -385,42 +387,68 @@ local REUnequipToolFromHotbar = ReplicatedStorage.Packages._Index["sleitnick_net
 local RFCancelFishingInputs = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/CancelFishingInputs"]
 local REFishCaught = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FishCaught"]
 
--- Variables
+-- Optimized variables
+local lastFishTime = 0
 local running = false
 local equipped = false
-local lastFishTime = 0
-local fishCheckEnabled = false
-local initialSetupDone = false
+local fishCount = 0
+local consecutiveSlowFish = 0
+local fishCaughtConnection = nil
 
--- Default input values
-local delaySpeed = 0.05   -- Delay antar lempar umpan
-local reelSpeed = 0.01    -- Delay antar catch / reel
+-- Performance tracking
+local performanceMetrics = {
+    lastCheckTime = 0,
+    fishPerMinute = 0,
+    totalFish = 0
+}
 
--- Safe Fire / Invoke
 local function safeFire(remote, arg)
-    if remote then
-        pcall(function()
-            if arg then remote:FireServer(arg) else remote:FireServer() end
-        end)
-    end
+    if not remote then return false end
+    local ok = pcall(function()
+        if arg ~= nil then
+            remote:FireServer(arg)
+        else
+            remote:FireServer()
+        end
+    end)
+    return ok
 end
 
 local function safeInvoke(remote, arg1, arg2)
-    if remote then
-        local ok, res = pcall(function()
-            if arg1 and arg2 then return remote:InvokeServer(arg1,arg2)
-            elseif arg1 then return remote:InvokeServer(arg1)
-            else return remote:InvokeServer() end
-        end)
-        if ok then return res end
+    if not remote then return nil end
+    local ok, res = pcall(function()
+        if arg1 ~= nil and arg2 ~= nil then
+            return remote:InvokeServer(arg1, arg2)
+        elseif arg1 ~= nil then
+            return remote:InvokeServer(arg1)
+        else
+            return remote:InvokeServer()
+        end
+    end)
+    return ok and res or nil
+end
+
+local function showNotification(title, content)
+    if WindUI and WindUI.Notify then
+        WindUI:Notify({
+            Title = title,
+            Content = content,
+            Duration = 3,
+        })
+    elseif Auto and Auto.Notify then
+        Auto:Notify({
+            Title = title,
+            Content = content,
+            Duration = 3,
+        })
     end
 end
 
--- Equip / Reset Tool
-local function equipToolOnce()
+local function equipTool()
     if not equipped then
-        for i=1,3 do
-            safeFire(REEquipToolFromHotbar,1)
+        for i = 1, 2 do
+            safeFire(REEquipToolFromHotbar, 1)
+            task.wait(0.05)
         end
         equipped = true
     end
@@ -428,139 +456,218 @@ end
 
 local function resetTool()
     safeFire(REUnequipToolFromHotbar)
-    equipped = false
-    equipToolOnce()
-end
-
--- Charge & Request Fishing
-local function doChargeAndRequest()
-    safeInvoke(RFChargeFishingRod,2)
-    safeInvoke(RFRequestFishingMinigameStarted,-1.25,1)
-end
-
--- Force Reset (anti-stuck)
-local function forceResetFishing()
-    for i=1,2 do
-        safeInvoke(RFCancelFishingInputs)
-    end
-    resetTool()
     task.wait(0.1)
-    doChargeAndRequest()
-    lastFishTime = tick()
+    equipped = false
+    equipTool()
 end
 
--- Fish Caught Handler (Hanya update timestamp)
-local function setupFishCaughtHandler()
-    REFishCaught.OnClientEvent:Connect(function(fishName,fishData)
-        lastFishTime = tick()
-    end)
-end
-
--- Anti-Stuck Loop
-local function fishCheckLoop()
-    local retryCount = 0
-    local maxRetries = 10
-    while running and fishCheckEnabled do
-        local currentTime = tick()
-        if currentTime - lastFishTime >= 8 and lastFishTime > 0 then
-            retryCount = retryCount + 1
-            forceResetFishing()
-            if retryCount >= maxRetries then
-                retryCount = 0
-            end
-        else
-            retryCount = 0
+-- Improved fishing initiation with faster execution
+local function startFishing()
+    -- Charge rod
+    safeInvoke(RFChargeFishingRod, 2)
+    task.wait(0.05)
+    
+    -- Multiple rapid requests to ensure it registers
+    for i = 1, 3 do
+        safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
+        if i < 3 then
+            task.wait(0.03)
         end
-        task.wait(1)
     end
 end
 
--- Main Fishing Cycle (Heartbeat loop)
-local function fishingCycle()
+-- Aggressive force reset when stuck
+local function forceResetFishing()
+    consecutiveSlowFish = consecutiveSlowFish + 1
+    
+    -- Cancel current fishing
+    for i = 1, 3 do
+        safeInvoke(RFCancelFishingInputs)
+        task.wait(0.05)
+    end
+    
+    -- Reset tool
+    resetTool()
+    task.wait(0.2)
+    
+    -- Restart fishing immediately
+    startFishing()
     lastFishTime = tick()
-    fishCheckEnabled = true
-    setupFishCaughtHandler()
-    equipToolOnce()
-    initialSetupDone = true
+end
 
-    local lastThrow = 0
-    local lastCatch = 0
-
-    -- Heartbeat loop
-    local heartbeatConn
-    heartbeatConn = RunService.Heartbeat:Connect(function()
+-- Optimized completion spam loop using RenderStepped for maximum speed
+local function spamCompletedLoop()
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
         if not running then
-            heartbeatConn:Disconnect()
-            fishCheckEnabled = false
-            initialSetupDone = false
+            connection:Disconnect()
             return
         end
-
-        local now = tick()
-
-        -- Lempar umpannya sesuai delaySpeed
-        if now - lastThrow >= delaySpeed then
-            doChargeAndRequest()
-            lastThrow = now
-        end
-
-        -- Tarik ikan sesuai reelSpeed
-        if now - lastCatch >= reelSpeed then
-            safeFire(REFishingCompleted)
-            lastCatch = now
-        end
+        safeFire(REFishingCompleted)
     end)
-
-    -- Anti-stuck loop
-    task.spawn(fishCheckLoop)
 end
 
--- Toggle Auto Fishing
-Auto:Toggle({
-    Title = "Auto Fishing",
-    Type = "Toggle",
-    Desc = "INSTANT FISHING - Stabil & Anti-Stuck",
-    Default = false,
-    Callback = function(state)
-        running = state
+-- Faster equipment maintenance
+local function equipToolLoop()
+    while running do
+        if not equipped then
+            equipTool()
+        end
+        safeFire(REEquipToolFromHotbar, 1)
+        task.wait(1.5)
+    end
+end
+
+-- Improved stuck detection with adaptive timing
+local function fishCheckLoop()
+    while running do
+        local currentTime = tick()
+        local timeSinceLastFish = currentTime - lastFishTime
+        
+        -- Aggressive stuck detection
+        if timeSinceLastFish >= 5 and lastFishTime > 0 then
+            -- Force reset if no fish caught in 5 seconds
+            forceResetFishing()
+            
+        elseif timeSinceLastFish >= 2.5 and lastFishTime > 0 then
+            -- Speed boost - send additional requests
+            for i = 1, 2 do
+                safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
+                task.wait(0.05)
+            end
+        end
+        
+        -- Performance monitoring
+        if currentTime - performanceMetrics.lastCheckTime >= 60 then
+            performanceMetrics.fishPerMinute = performanceMetrics.totalFish
+            performanceMetrics.totalFish = 0
+            performanceMetrics.lastCheckTime = currentTime
+            
+            -- Auto-optimize if performance is low
+            if performanceMetrics.fishPerMinute < 30 then
+                forceResetFishing()
+            end
+        end
+        
+        task.wait(0.5)
+    end
+end
+
+-- Periodic maintenance reset
+local function periodicResetLoop()
+    while running do
+        task.wait(180) -- Every 3 minutes
         if running then
-            fishingCycle()
+            resetTool()
+            task.wait(0.3)
+            startFishing()
+        end
+    end
+end
+
+-- Optimized fish caught handler
+local function setupFishCaughtHandler()
+    if fishCaughtConnection then
+        fishCaughtConnection:Disconnect()
+    end
+    
+    fishCaughtConnection = REFishCaught.OnClientEvent:Connect(function(fishName, fishData)
+        local currentTime = tick()
+        local timeSinceLastFish = currentTime - lastFishTime
+        
+        -- Update metrics
+        lastFishTime = currentTime
+        fishCount = fishCount + 1
+        performanceMetrics.totalFish = performanceMetrics.totalFish + 1
+        
+        -- Detect slow fishing
+        if timeSinceLastFish > 2 then
+            consecutiveSlowFish = consecutiveSlowFish + 1
         else
+            consecutiveSlowFish = 0
+        end
+        
+        -- Immediate restart with minimal delay
+        if running then
+            task.wait(0.05) -- Reduced delay for faster cycling
+            startFishing()
+            
+            -- Extra boost if fish was slow
+            if timeSinceLastFish > 1.5 then
+                task.wait(0.05)
+                for i = 1, 2 do
+                    safeInvoke(RFRequestFishingMinigameStarted, -1.25, 1)
+                    task.wait(0.03)
+                end
+            end
+        end
+    end)
+end
+
+-- Main fishing cycle
+local function fishingCycle()
+    lastFishTime = tick()
+    fishCount = 0
+    consecutiveSlowFish = 0
+    performanceMetrics.lastCheckTime = tick()
+    performanceMetrics.totalFish = 0
+    
+    -- Setup handler first
+    setupFishCaughtHandler()
+    
+    -- Start all loops
+    task.spawn(spamCompletedLoop)
+    task.spawn(equipToolLoop)
+    task.spawn(fishCheckLoop)
+    task.spawn(periodicResetLoop)
+    
+    -- Initial equip and start
+    equipTool()
+    task.wait(0.3)
+    startFishing()
+    
+    showNotification("Instant Fishing", "Started with optimized speed!")
+    
+    -- Keep running
+    while running do
+        task.wait(1)
+    end
+    
+    -- Cleanup
+    if fishCaughtConnection then
+        fishCaughtConnection:Disconnect()
+        fishCaughtConnection = nil
+    end
+end
+
+autoFishingToggle = Auto:Toggle({
+    Title = "Auto Fishing", 
+    Type = "Toggle",
+    Desc = "OPTIMIZED INSTANT FISHING - 60+ FISH/MIN",
+    Default = false,
+    Callback = function(state) 
+        running = state
+        autoFishingRunning = state 
+        
+        if running then
+            task.spawn(fishingCycle)
+        else
+            -- Cleanup
             safeInvoke(RFCancelFishingInputs)
+            safeFire(REUnequipToolFromHotbar)
             equipped = false
-            fishCheckEnabled = false
-            initialSetupDone = false
+            
+            if fishCaughtConnection then
+                fishCaughtConnection:Disconnect()
+                fishCaughtConnection = nil
+            end
+            
+            showNotification("Instant Fishing", "Stopped. Total fish: " .. fishCount)
         end
     end
 })
 
 Auto:Space()
-
--- Input Box Delay Speed (lempar umpan) max 10 detik
-Auto:Input({
-    Title = "Delay Speed (lempar umpan, detik)",
-    Placeholder = tostring(delaySpeed),
-    Callback = function(value)
-        local num = tonumber(value)
-        if num and num > 0 then
-            if num > 10 then num = 10 end
-            delaySpeed = num
-        end
-    end
-})
-
--- Input Box Reel Speed (tarik pancing / catch) min 0.0001 detik
-Auto:Input({
-    Title = "Reel Speed (tarik pancing, detik)",
-    Placeholder = tostring(reelSpeed),
-    Callback = function(value)
-        local num = tonumber(value)
-        if num and num >= 0.0001 then
-            reelSpeed = num
-        end
-    end
-})
-
 Auto:Divider()
 
 
