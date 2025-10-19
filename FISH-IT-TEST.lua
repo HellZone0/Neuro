@@ -365,7 +365,6 @@ task.spawn(function()
 end)
 print("ANTI-AFK : ON By HellZone")
 
-
 local Section = Auto:Section({ 
     Title = "Main Feature",
 })
@@ -565,6 +564,29 @@ local function periodicResetLoop()
     end
 end
 
+-- Fishing minigame handler - auto complete when fish bites
+local function setupMinigameHandler()
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- Monitor for minigame GUI appearance
+    task.spawn(function()
+        while running do
+            local fishingMinigame = playerGui:FindFirstChild("FishingMinigame")
+            
+            if fishingMinigame and fishingMinigame.Enabled then
+                -- Minigame detected, spam completion
+                for i = 1, 10 do
+                    if not running then break end
+                    safeFire(REFishingCompleted)
+                    task.wait(0.05)
+                end
+            end
+            
+            task.wait(0.1)
+        end
+    end)
+end
+
 -- Optimized fish caught handler
 local function setupFishCaughtHandler()
     if fishCaughtConnection then
@@ -669,7 +691,6 @@ autoFishingToggle = Auto:Toggle({
 
 Auto:Space()
 Auto:Divider()
-
 
 
 local Section = Auto:Section({ 
