@@ -1702,6 +1702,9 @@ local ElementJungleToggle = Quest:Toggle({
 })
 
 -- ----------------- webhook -------------
+local HttpService = game:GetService("HttpService")
+HttpService.HttpEnabled = true
+
 local webhookUrl = "YOUR_WEBHOOK_URL_HERE"
 local monitorEnabled = false
 local selectedTiers = {"Epic", "Legendary", "Mythic", "SECRET"}
