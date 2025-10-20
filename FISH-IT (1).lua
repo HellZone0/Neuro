@@ -1702,7 +1702,7 @@ local ElementJungleToggle = Quest:Toggle({
 })
 
 -- =========================
--- Webhook Notifier (Fixed)
+-- Webhook Notifier (Stabilitas Ditingkatkan)
 -- =========================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1710,17 +1710,11 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local HttpService = game:GetService("HttpService")
 
--- ----------------- Settings -----------------
--- Pastikan _G.WebhookURL dll sudah terdefinisi jika ini dieksekusi sebagai Global
--- Jika tidak, ganti dengan nilai default:
-_G.WebhookURL = _G.WebhookURL or "YOUR_WEBHOOK_URL_HERE"
-_G.DetectNewFishActive = _G.DetectNewFishActive or false
-_G.WebhookRarities = _G.WebhookRarities or {}
-
+-- ----------------- Settings (HILANGKAN _G UNTUK STABILITAS) -----------------
 local Settings = {
-    WebhookURL = _G.WebhookURL,
-    DetectNewFishActive = _G.DetectNewFishActive,
-    WebhookRarities = _G.WebhookRarities or {},
+    WebhookURL = "YOUR_WEBHOOK_URL_HERE", -- Nilai awal
+    DetectNewFishActive = false,
+    WebhookRarities = {},
     ScanInterval = 3
 }
 
@@ -1791,7 +1785,7 @@ local function getThumbnailURL(assetString)
     if not assetId then return nil end
     local api = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&type=Asset&size=420x420&format=Png", assetId)
     
-    -- PENTING: Menggunakan fungsi HTTP yang lebih kompatibel
+    -- Menggunakan fungsi HTTP yang lebih kompatibel dan menangani status
     local success, response = pcall(function()
         local result, headers, status = req({
             Url = api,
@@ -1803,14 +1797,11 @@ local function getThumbnailURL(assetString)
         return nil
     end)
     
-    return success and response and response.data and response.data[1] and response.data[1].imageUrl
+    return success and response and response.data and response.data[1] and response.data.data[1].imageUrl
 end
 
 -- ----------------- Webhook Sender -----------------
 local function sendNewFishWebhook(newlyCaughtFish)
-    Settings.WebhookURL = _G.WebhookURL
-    Settings.WebhookRarities = _G.WebhookRarities
-
     if not req or not Settings.WebhookURL or not Settings.WebhookURL:match("discord.com/api/webhooks") then return end
 
     local fishData = fishDB[newlyCaughtFish.Id]
@@ -1828,7 +1819,7 @@ local function sendNewFishWebhook(newlyCaughtFish)
     local content = table.find(Settings.WebhookRarities, rarity) and "@everyone" or ""
 
     -- Mencoba mendapatkan URL gambar
-    local iconUrl = getThumbnailURL(fishData.Icon)
+    local iconUrl = pcall(function() return getThumbnailURL(fishData.Icon) end)
 
     local payload = {
         username = "HellZone Community",
@@ -1877,7 +1868,6 @@ end)
 -- ----------------- Monitor new fish -----------------
 spawn(function()
     while true do
-        Settings.DetectNewFishActive = _G.DetectNewFishActive
         task.wait(Settings.ScanInterval)
         if Settings.DetectNewFishActive then
             local currentFish = getInventoryFish()
@@ -1891,28 +1881,23 @@ spawn(function()
     end
 end)
 
--- ----------------- UI (Dipindahkan ke Tab Discord) -----------------
--- Memastikan _G.WebhookURL dll tersedia untuk UI
-_G.WebhookURL = _G.WebhookURL or "YOUR_WEBHOOK_URL_HERE"
-_G.DetectNewFishActive = _G.DetectNewFishActive or false
-_G.WebhookRarities = _G.WebhookRarities or {}
-
-local function SaveConfig()
-    -- Fungsi dummy karena WindUI mungkin memerlukan fungsi ini
-    -- Dalam konteks global exploit, ini biasanya disimpan ke file
-end
+-- ----------------- UI (Dipindahkan ke Tab Discord & Stabil) -----------------
 
 Discord:Input({
     Title="Webhook URL",
     Placeholder="Paste Discord Webhook URL",
-    Value=_G.WebhookURL,
-    Callback=function(val) _G.WebhookURL = val; SaveConfig() end
+    Value=Settings.WebhookURL,
+    Callback=function(val) 
+        Settings.WebhookURL = val
+    end
 })
 
 Discord:Toggle({
     Title="Enable Webhook",
-    Value=_G.DetectNewFishActive,
-    Callback=function(state) _G.DetectNewFishActive = state; SaveConfig() end
+    Value=Settings.DetectNewFishActive,
+    Callback=function(state) 
+        Settings.DetectNewFishActive = state
+    end
 })
 
 Discord:Dropdown({
@@ -1920,8 +1905,10 @@ Discord:Dropdown({
     Values=rarityList,
     Multi=true,
     AllowNone=true,
-    Value=_G.WebhookRarities,
-    Callback=function(selected) _G.WebhookRarities = selected; SaveConfig() end
+    Value=Settings.WebhookRarities,
+    Callback=function(selected) 
+        Settings.WebhookRarities = selected
+    end
 })
 
 Discord:Button({
@@ -1930,7 +1917,7 @@ Discord:Button({
         local payload = {embeds={{title="✅ Test Webhook Connected", description="Webhook connection successful!", color=0x00FF00}}}
         pcall(function()
             req({
-                Url=_G.WebhookURL, -- Menggunakan _G.WebhookURL terbaru
+                Url=Settings.WebhookURL,
                 Method="POST",
                 Headers={["Content-Type"]="application/json"},
                 Body = HttpService:JSONEncode(payload)
@@ -2156,7 +2143,7 @@ local function Main()
     end
 
     local function createUI()
-        if not Discord then return end
+        if not Enchant then return end
         
         Enchant:Dropdown({
             Title = "Target Enchant",
