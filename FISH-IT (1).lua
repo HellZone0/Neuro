@@ -1702,14 +1702,8 @@ local ElementJungleToggle = Quest:Toggle({
 })
 
 -- ----------------- webhook (FULL EXTENDED with Image) -------------
--- Full version based on your original long script, but with image/thumbnail integration.
--- Paste this block replacing your existing webhook block.
-
--- Services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local LocalPlayer = Players.LocalPlayer
+HttpService.HttpEnabled = true
 
 -- Config / State
 local webhookUrl = "YOUR_WEBHOOK_URL_HERE"
