@@ -1701,10 +1701,17 @@ local ElementJungleToggle = Quest:Toggle({
     end
 })
 
--- ----------------- webhook -------------
-local HttpService = game:GetService("HttpService")
-HttpService.HttpEnabled = true
+-- ----------------- webhook (FULL EXTENDED with Image) -------------
+-- Full version based on your original long script, but with image/thumbnail integration.
+-- Paste this block replacing your existing webhook block.
 
+-- Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Config / State
 local webhookUrl = "YOUR_WEBHOOK_URL_HERE"
 local monitorEnabled = false
 local selectedTiers = {"Epic", "Legendary", "Mythic", "SECRET"}
@@ -1712,8 +1719,9 @@ local selectedTiers = {"Epic", "Legendary", "Mythic", "SECRET"}
 local fishNameMapping = {}
 local fishTierMapping = {}
 local fishPriceMapping = {}
+local fishIconMapping = {} -- store icon/asset id for thumbnails
 
--- Function to get display tier name from number
+-- Utility: tier name, color, emoji, price formatting, mutation status
 local function getTierName(tierNumber)
     local tierMap = {
         [1] = "Common",
@@ -1727,7 +1735,6 @@ local function getTierName(tierNumber)
     return tierMap[tierNumber] or "Unknown"
 end
 
--- Color mapping (keep original decimals/hex)
 local function getTierColor(tierName)
     local colors = {
         ["Common"] = 0x7289DA,
@@ -1755,12 +1762,14 @@ local function getTierEmoji(tierName)
 end
 
 local function formatPrice(price)
-    return tostring(price):reverse():gsub("%d%d%d", "%1,"):reverse():gsub("^,", "")
+    if not price then return "0" end
+    local s = tostring(price)
+    local reversed = s:reverse():gsub("(%d%d%d)","%1,"):reverse()
+    return reversed:gsub("^,", "")
 end
 
 local function getMutationStatus(mutationData)
     if not mutationData then return "Normal" end
-
     if mutationData.Shiny then return "✨ Shiny"
     elseif mutationData.Golden then return "🌟 Golden"
     elseif mutationData.Rainbow then return "🌈 Rainbow"
@@ -1769,7 +1778,7 @@ local function getMutationStatus(mutationData)
     else return "Normal" end
 end
 
--- scan Items folder to build mappings (name, tier, price)
+-- scan Items folder to build mappings (name, tier, price, icon)
 local function scanAllItems()
     local ItemsFolder = ReplicatedStorage:FindFirstChild("Items")
     if not ItemsFolder then return 0 end
@@ -1778,25 +1787,31 @@ local function scanAllItems()
 
     for _, item in pairs(ItemsFolder:GetDescendants()) do
         if item:IsA("ModuleScript") then
-            local success, itemData = pcall(function()
-                return require(item)
-            end)
-
+            local success, itemData = pcall(function() return require(item) end)
             if success and itemData then
                 local data = itemData.Data or itemData
-
                 if data and type(data) == "table" and data.Id and data.Name then
                     fishCount = fishCount + 1
 
                     fishNameMapping[data.Id] = data.Name
                     fishTierMapping[data.Id] = data.Tier or 1
 
+                    -- Price resolution
                     if itemData.SellPrice then
                         fishPriceMapping[data.Id] = itemData.SellPrice
                     elseif data.SellPrice then
                         fishPriceMapping[data.Id] = data.SellPrice
                     else
                         fishPriceMapping[data.Id] = 0
+                    end
+
+                    -- Icon detection (store as-is, may be numeric or rbxassetid string)
+                    if data.Icon then
+                        fishIconMapping[data.Id] = data.Icon
+                    elseif itemData.Icon then
+                        fishIconMapping[data.Id] = itemData.Icon
+                    elseif data.Image then
+                        fishIconMapping[data.Id] = data.Image
                     end
                 end
             end
@@ -1814,62 +1829,55 @@ local function getFishPriceFromId(fishId)
     return fishPriceMapping[fishId] or 0
 end
 
--- ======================
 -- getThumbnailURL (exact function you provided)
--- ======================
 function getThumbnailURL(assetString)
-    local assetId = assetString:match("rbxassetid://(%d+)")
+    if not assetString then return nil end
+    -- normalize if it's just a number
+    if tostring(assetString):match("^%d+$") then
+        assetString = "rbxassetid://" .. tostring(assetString)
+    end
+    local assetId = tostring(assetString):match("rbxassetid://(%d+)")
     if not assetId then return nil end
     local api = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&type=Asset&size=420x420&format=Png", assetId)
     local success, response = pcall(function() return HttpService:JSONDecode(game:HttpGet(api)) end)
     return success and response and response.data and response.data[1] and response.data[1].imageUrl
 end
 
--- Attempt to find an asset string inside itemData using common field names
+-- helper: try multiple common fields in itemData for asset string
 local function detectAssetStringFromItemData(itemData)
     if not itemData then return nil end
-
-    -- Common field candidates (check in order)
-    local candidates = {
-        "AssetId", "Asset", "Image", "Icon", "Thumbnail", "ImageUrl", "ImageURL", "IconId",
-        "Data", -- sometimes nested
-    }
-
-    -- direct lookup
+    local candidates = {"Icon", "Image", "Asset", "AssetId", "Thumbnail", "ImageUrl", "ImageURL", "IconId"}
     for _, key in ipairs(candidates) do
-        local val = itemData[key]
-        if val and type(val) == "string" then
-            -- if it's a plain number or url, try to normalize to rbxassetid:// format
-            if val:match("^rbxassetid://%d+") then
-                return val
-            elseif val:match("^%d+$") then
-                return "rbxassetid://" .. val
-            elseif val:match("^https?://") and val:match("assetId=%d+") then
-                -- try to extract id from url patterns
-                local id = val:match("assetId=(%d+)")
+        local v = itemData[key]
+        if v and type(v) == "string" and v ~= "" then
+            if v:match("^rbxassetid://") then return v end
+            if v:match("^%d+$") then return "rbxassetid://" .. v end
+            if v:match("^https?://") and v:match("assetId=%d+") then
+                local id = v:match("assetId=(%d+)")
                 if id then return "rbxassetid://" .. id end
             end
+        elseif v and type(v) == "number" then
+            return "rbxassetid://" .. tostring(v)
         end
     end
 
-    -- check nested Data table
+    -- nested Data table
     if itemData.Data and type(itemData.Data) == "table" then
         for _, key in ipairs(candidates) do
-            local val = itemData.Data[key]
-            if val and type(val) == "string" then
-                if val:match("^rbxassetid://%d+") then
-                    return val
-                elseif val:match("^%d+$") then
-                    return "rbxassetid://" .. val
-                end
+            local v = itemData.Data[key]
+            if v and type(v) == "string" and v ~= "" then
+                if v:match("^rbxassetid://") then return v end
+                if v:match("^%d+$") then return "rbxassetid://" .. v end
+            elseif v and type(v) == "number" then
+                return "rbxassetid://" .. tostring(v)
             end
         end
     end
 
-    -- try common patterns inside tostring of itemData
-    local success, dumped = pcall(function() return tostring(itemData) end)
-    if success and dumped then
-        local id = dumped:match("rbxassetid://(%d+)")
+    -- try tostring
+    local ok, s = pcall(function() return tostring(itemData) end)
+    if ok and s then
+        local id = s:match("rbxassetid://(%d+)")
         if id then return "rbxassetid://" .. id end
     end
 
@@ -1897,7 +1905,6 @@ local function createSecretEmbed(fishName, playerName, weight, mutationStatus, f
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
 
-    -- attach main image if available
     if imageUrl and type(imageUrl) == "string" and imageUrl ~= "" then
         embed.image = { url = imageUrl }
     end
@@ -1922,7 +1929,6 @@ local function createNormalEmbed(fishName, playerName, tierName, tierColor, tier
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
 
-    -- attach main image if available
     if imageUrl and type(imageUrl) == "string" and imageUrl ~= "" then
         embed.image = { url = imageUrl }
     end
@@ -1949,20 +1955,14 @@ local function sendFishWebhook(fishId, weightData, itemData, isNew)
     local mutationStatus = getMutationStatus(mutationData)
 
     local player = Players.LocalPlayer
-    local playerName = (player and (player.DisplayName or player.Name)) or "Unknown Player"
+    local playerName = player and (player.DisplayName or player.Name) or "Unknown Player"
 
-    -- detect assetString from itemData (auto-detect)
-    local assetString = detectAssetStringFromItemData(itemData)
-
-    -- fetch image URL (may be nil)
+    -- asset detection: try fishIconMapping first, then itemData
+    local assetString = fishIconMapping[fishId] or detectAssetStringFromItemData(itemData)
     local imageUrl = nil
     if assetString then
-        local success, resp = pcall(function()
-            return getThumbnailURL(assetString)
-        end)
-        if success and resp then
-            imageUrl = resp
-        end
+        local ok, res = pcall(function() return getThumbnailURL(assetString) end)
+        if ok and res then imageUrl = res end
     end
 
     if webhookUrl and webhookUrl ~= "YOUR_WEBHOOK_URL_HERE" then
@@ -1973,25 +1973,29 @@ local function sendFishWebhook(fishId, weightData, itemData, isNew)
             embed = createNormalEmbed(fishName, playerName, tierName, tierColor, tierEmoji, weight, mutationStatus, fishPrice, imageUrl)
         end
 
-        local content = ""
-        if tierName == "SECRET" then
-            content = "@everyone"
-        end
+        local content = nil
+        if tierName == "SECRET" then content = "@everyone" end
 
         local payload = {
             username = "HellZone Community",
             avatar_url = "https://cdn.discordapp.com/attachments/1422181713114824765/1428652693907570741/38d29524-906d-49a7-893f-044124ce3668.jpg",
-            content = content ~= "" and content or nil,
+            content = content,
             embeds = { embed }
         }
 
         pcall(function()
-            -- Try several http methods for compatibility
             local ok = false
-            -- Prefer HttpService PostAsync (roblox native) if allowed
-            if HttpService and HttpService:IsA("HttpService") and pcall(function() HttpService:PostAsync(webhookUrl, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson) end) then
-                ok = true
-            else
+            -- try HttpService PostAsync (may work on server)
+            local s, e = pcall(function()
+                if HttpService and HttpService:IsA("HttpService") then
+                    HttpService:PostAsync(webhookUrl, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
+                    return true
+                end
+                return false
+            end)
+            if s and e then ok = true end
+
+            if not ok then
                 local requestFn = (syn and syn.request) or (http and http.request) or http_request or request
                 if requestFn then
                     requestFn({
@@ -2003,6 +2007,7 @@ local function sendFishWebhook(fishId, weightData, itemData, isNew)
                     ok = true
                 end
             end
+
             if not ok then
                 warn("Webhook failed (no supported HTTP function).")
             end
@@ -2035,7 +2040,7 @@ local function startFishMonitoring()
     end
 end
 
--- Test webhook connection embed (kept from original, without image)
+-- Test webhook connection embed (kept from original, with same fields)
 local function testWebhookConnection()
     if webhookUrl == "YOUR_WEBHOOK_URL_HERE" then return end
 
@@ -2059,9 +2064,16 @@ local function testWebhookConnection()
 
     pcall(function()
         local ok = false
-        if HttpService and HttpService:IsA("HttpService") and pcall(function() HttpService:PostAsync(webhookUrl, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson) end) then
-            ok = true
-        else
+        local s, e = pcall(function()
+            if HttpService and HttpService:IsA("HttpService") then
+                HttpService:PostAsync(webhookUrl, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
+                return true
+            end
+            return false
+        end)
+        if s and e then ok = true end
+
+        if not ok then
             local requestFn = (syn and syn.request) or (http and http.request) or http_request or request
             if requestFn then
                 requestFn({
@@ -2078,7 +2090,7 @@ local function testWebhookConnection()
 end
 
 -- UI Integration (uses Discord UI object from your original script)
--- If your Discord object is different, keep names compatible
+-- Keep consistent with your UI system names (Discord, WindUI etc.)
 local WebhookInput = Discord:Input({
     Title = "Webhook URL",
     Placeholder = "https://discord.com/api/webhooks/...",
