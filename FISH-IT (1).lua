@@ -654,13 +654,12 @@ local function stopFreeze()
     if freezeLoop then
         freezeLoop:Disconnect()
         freezeLoop = nil
-        lastCFrame = nil
     end
 end
 
 local LocationDropdown = Auto:Dropdown({
     Title = "Teleport Location",
-    Values = {"Fisherman Island", "Kohana Volcano", "Kohana", "Esotric Islands", "Coral Reefs", "Crater Island", "Sisyphus Statue", "Treasure Room", "Lost Isle", "Tropical Grove", "Weater Machine", "Enchant Room", "Seconds Enchant", "Ancient Jungle", "Sacred Temple", "Underground Cellar", "Arrow Artifact", "Crescent Artifact", "Hourglass Diamond Artifact", "Diamond Artifact"},
+    Values = {"Fisherman Island", "Kohana Volcano", "Kohana", "Esotric Islands", "Coral Reefs", "Crater Island", "Sisyphus Statue", "Treasure Room", "Lost Isle", "Tropical Grove", "Weater Machine", "Enchant Room","Seconds Enchant", "Ancient Jungle", "Sacred Temple", "Underground Cellar", "Arrow Artifact", "Crescent Artifact", "Hourglass Diamond Artifact", "Diamond Artifact"},
     Value = "",
     Callback = function(option)
         if option and option ~= "" then
@@ -737,7 +736,7 @@ local SaveButton = Auto:Button({
 })
 
 local TeleportToggle = Auto:Toggle({
-    Title = "Teleport & Freeze to Saved Position",
+    Title = "Teleport & Freeze to Position",
     Default = false,
     Callback = function(state)
         teleportEnabled = state
@@ -1193,7 +1192,7 @@ local selectedLocation = ""
 
 local LocationDropdown = Teleport:Dropdown({
     Title = "Teleport To Island",
-    Values = {"Fisherman Island", "Kohana Volcano", "Kohana", "Esotric Islands", "Coral Reefs", "Crater Island", "Sisyphus Statue", "Treasure Room", "Lost Isle", "Tropical Grove", "Weater Machine", "Enchant Room", "Seconds Enchant", "Ancient Jungle", "Sacred Temple", "Underground Cellar", "Arrow Artifact", "Crescent Artifact", "Hourglass Diamond Artifact", "Diamond Artifact"},
+    Values = {"Fisherman Island", "Kohana Volcano", "Kohana", "Esotric Islands", "Coral Reefs", "Crater Island", "Sisyphus Statue", "Treasure Room", "Lost Isle", "Tropical Grove", "Weater Machine", "Enchant Room","Seconds Enchant", "Ancient Jungle", "Sacred Temple", "Underground Cellar", "Arrow Artifact", "Crescent Artifact", "Hourglass Diamond Artifact", "Diamond Artifact"},
     Value = "",
     Callback = function(option)
         if option and option ~= "" then
@@ -1702,7 +1701,7 @@ local ElementJungleToggle = Quest:Toggle({
 })
 
 -- =========================
--- Webhook Notifier (Stabilitas Ditingkatkan)
+-- Webhook Notifier (Fixed)
 -- =========================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1710,13 +1709,30 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local HttpService = game:GetService("HttpService")
 
--- ----------------- Settings (HILANGKAN _G UNTUK STABILITAS) -----------------
+-- ----------------- Settings -----------------
+-- MENGGANTI _G.VAR dengan Settings.VAR untuk stabilitas.
+-- Tetap menggunakan _G untuk kompatibilitas jika environment Anda memerlukannya, 
+-- tetapi default-nya diatur di Settings jika _G kosong.
+
+-- Definisi awal _G untuk menghindari crash jika tidak ada
+_G.WebhookURL = _G.WebhookURL or "YOUR_WEBHOOK_URL_HERE"
+_G.DetectNewFishActive = _G.DetectNewFishActive or false
+_G.WebhookRarities = _G.WebhookRarities or {}
+
 local Settings = {
-    WebhookURL = "YOUR_WEBHOOK_URL_HERE", -- Nilai awal
-    DetectNewFishActive = false,
-    WebhookRarities = {},
+    WebhookURL = _G.WebhookURL,
+    DetectNewFishActive = _G.DetectNewFishActive,
+    WebhookRarities = _G.WebhookRarities,
     ScanInterval = 3
 }
+-- Fungsi dummy SaveConfig agar UI tidak crash
+local function SaveConfig()
+    -- Coba sinkronkan balik ke _G jika ada
+    _G.WebhookURL = Settings.WebhookURL
+    _G.DetectNewFishActive = Settings.DetectNewFishActive
+    _G.WebhookRarities = Settings.WebhookRarities
+end
+
 
 -- Http request fallback
 local req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -1785,7 +1801,7 @@ local function getThumbnailURL(assetString)
     if not assetId then return nil end
     local api = string.format("https://thumbnails.roblox.com/v1/assets?assetIds=%s&type=Asset&size=420x420&format=Png", assetId)
     
-    -- Menggunakan fungsi HTTP yang lebih kompatibel dan menangani status
+    -- Memperbaiki agar menggunakan req() untuk kompatibilitas yang lebih baik
     local success, response = pcall(function()
         local result, headers, status = req({
             Url = api,
@@ -1802,6 +1818,11 @@ end
 
 -- ----------------- Webhook Sender -----------------
 local function sendNewFishWebhook(newlyCaughtFish)
+    -- Update Settings dari _G (untuk mengambil nilai terbaru dari UI)
+    Settings.WebhookURL = _G.WebhookURL
+    Settings.WebhookRarities = _G.WebhookRarities
+    Settings.DetectNewFishActive = _G.DetectNewFishActive
+    
     if not req or not Settings.WebhookURL or not Settings.WebhookURL:match("discord.com/api/webhooks") then return end
 
     local fishData = fishDB[newlyCaughtFish.Id]
@@ -1819,7 +1840,9 @@ local function sendNewFishWebhook(newlyCaughtFish)
     local content = table.find(Settings.WebhookRarities, rarity) and "@everyone" or ""
 
     -- Mencoba mendapatkan URL gambar
-    local iconUrl = pcall(function() return getThumbnailURL(fishData.Icon) end)
+    local iconUrl
+    local success, url = pcall(function() return getThumbnailURL(fishData.Icon) end)
+    if success then iconUrl = url end
 
     local payload = {
         username = "HellZone Community",
@@ -1837,7 +1860,6 @@ local function sendNewFishWebhook(newlyCaughtFish)
                 {name="Sell Price", value=price, inline=true},
                 {name="Backpack", value=backpack, inline=true}
             },
-            -- Menambahkan thumbnail/image jika iconUrl berhasil didapat
             thumbnail = iconUrl and { url = iconUrl } or nil,
             image = iconUrl and { url = iconUrl } or nil,
             footer = { text = "Current Coins: "..coins.." | "..os.date("%d %B %Y, %H:%M:%S") }
@@ -1859,15 +1881,14 @@ buildFishDatabase()
 
 -- Populate known fish UUIDs
 spawn(function()
-    local inv = getInventoryFish()
-    for _, fish in ipairs(inv) do
+    for _, fish in ipairs(getInventoryFish()) do
         if fish.UUID then knownFishUUIDs[fish.UUID] = true end
     end
 end)
 
 -- ----------------- Monitor new fish -----------------
 spawn(function()
-    while true do
+    while wait(0.1) do
         task.wait(Settings.ScanInterval)
         if Settings.DetectNewFishActive then
             local currentFish = getInventoryFish()
@@ -1881,14 +1902,14 @@ spawn(function()
     end
 end)
 
--- ----------------- UI (Dipindahkan ke Tab Discord & Stabil) -----------------
-
+-- ----------------- UI Webhook (DIPINDAHKAN KE DISCORD) -----------------
 Discord:Input({
     Title="Webhook URL",
     Placeholder="Paste Discord Webhook URL",
     Value=Settings.WebhookURL,
     Callback=function(val) 
         Settings.WebhookURL = val
+        SaveConfig() -- Panggil SaveConfig untuk menyinkronkan ke _G
     end
 })
 
@@ -1897,6 +1918,7 @@ Discord:Toggle({
     Value=Settings.DetectNewFishActive,
     Callback=function(state) 
         Settings.DetectNewFishActive = state
+        SaveConfig() -- Panggil SaveConfig untuk menyinkronkan ke _G
     end
 })
 
@@ -1908,6 +1930,7 @@ Discord:Dropdown({
     Value=Settings.WebhookRarities,
     Callback=function(selected) 
         Settings.WebhookRarities = selected
+        SaveConfig() -- Panggil SaveConfig untuk menyinkronkan ke _G
     end
 })
 
@@ -1920,13 +1943,13 @@ Discord:Button({
                 Url=Settings.WebhookURL,
                 Method="POST",
                 Headers={["Content-Type"]="application/json"},
-                Body = HttpService:JSONEncode(payload)
+                Body=HttpService:JSONEncode(payload)
             })
         end)
     end
 })
 
-
+-- ----------------- UI Settings (LANJUTAN) -----------------
 local section = Setting:Section({ 
     Title = "Game Optimization",
 })
