@@ -154,49 +154,54 @@ local Window = Noctis:Window({
     DragStyle = 1,
     DisabledWindowControls = {},
     OpenButtonImage = "rbxassetid://77461382621338",
-    OpenButtonSize = UDim2.fromOffset(48, 48), -- Size sedang
+    OpenButtonSize = UDim2.fromOffset(48, 48),
     OpenButtonPosition = UDim2.fromScale(0.45, 0.1),
     Keybind = Enum.KeyCode.RightControl,
     AcrylicBlur = true,
 })
 
--- Menambahkan efek glow pelangi
+-- INI BAGIAN EFEK (WAJIB DITEMPATKAN SETELAH WINDOW DIBUAT)
+local OpenButtonImageID = "rbxassetid://77461382621338"
+
 task.defer(function()
     local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    local button = playerGui:FindFirstChildWhichIsA("ImageButton", true)
+    local targetButton = nil
 
-    if button then
-        -- Sudut halus
+    -- Cari tombol berdasarkan Image ID
+    for _, descendant in ipairs(playerGui:GetDescendants()) do
+        if descendant:IsA("ImageButton") or descendant:IsA("ImageLabel") then
+            if descendant.Image == OpenButtonImageID then
+                targetButton = descendant
+                break
+            end
+        end
+    end
+
+    if targetButton then
+        -- Sudut tumpul
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 12)
-        corner.Parent = button
+        corner.Parent = targetButton
 
-        -- Stroke pelangi
+        -- Glow pelangi
         local rainbowStroke = Instance.new("UIStroke")
         rainbowStroke.Thickness = 2.5
         rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         rainbowStroke.Transparency = 0
-        rainbowStroke.Color = Color3.fromRGB(255, 0, 0) -- Akan dianimasi
-        rainbowStroke.Parent = button
+        rainbowStroke.Color = Color3.fromRGB(255, 0, 0)
+        rainbowStroke.Parent = targetButton
 
-        -- Animasi warna pelangi
+        -- Animasi pelangi
         task.spawn(function()
             local hue = 0
-            while button.Parent ~= nil do
+            while targetButton.Parent ~= nil do
                 hue = (hue + 0.005) % 1
                 rainbowStroke.Color = Color3.fromHSV(hue, 1, 1)
                 task.wait(0.02)
             end
         end)
-
-        -- Efek bayangan luar
-        local uiGradient = Instance.new("UIGradient")
-        uiGradient.Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)),
-            ColorSequenceKeypoint.new(1, Color3.fromHSV(1, 1, 1))
-        }
-        uiGradient.Rotation = 45
-        uiGradient.Parent = button
+    else
+        warn("⚠ Tidak menemukan tombol open window dengan ImageID:", OpenButtonImageID)
     end
 end)
 
