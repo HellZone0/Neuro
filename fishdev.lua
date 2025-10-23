@@ -1,4 +1,4 @@
-local Logger       = loadstring(game:HttpGet("https://raw.githubusercontent.com/c3iv3r/a/refs/heads/main/utils/logger.lua"))()
+local Logger       = loadstring(game:HttpGet("https://raw.githubusercontent.com/HellZone0/RajaKikir/refs/heads/main/utils/logger.lua"))()
 
 -- FOR PRODUCTION: Uncomment this line to disable all logging
 --Logger.disableAll()
@@ -10,16 +10,16 @@ local mainLogger = Logger.new("Main")
 local featureLogger = Logger.new("FeatureManager")
 
 --// Library
-local Noctis = loadstring(game:HttpGet("https://raw.githubusercontent.com/c3iv3r/a/refs/heads/main/lib.lua"))()
+local Noctis = loadstring(game:HttpGet("https://raw.githubusercontent.com/HellZone0/RajaKikir/refs/heads/main/lib.lua"))()
 
 -- ===========================
 -- LOAD HELPERS & FEATURE MANAGER
 -- ===========================
 mainLogger:info("Loading Helpers...")
-local Helpers = loadstring(game:HttpGet("https://raw.githubusercontent.com/c3iv3r/a/refs/heads/main/module/f/helpers.lua"))()
+local Helpers = loadstring(game:HttpGet("https://raw.githubusercontent.com/HellZone0/RajaKikir/refs/heads/main/module/f/helpers.lua"))()
 
 mainLogger:info("Loading FeatureManager...")
-local FeatureManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/c3iv3r/a/refs/heads/main/module/f/featuremanager.lua"))()
+local FeatureManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/HellZone0/RajaKikir/refs/heads/main/module/f/featuremanager.lua"))()
 
 -- ===========================
 -- GLOBAL SERVICES & VARIABLES
@@ -51,6 +51,19 @@ _G.NetPath = NetPath
 pcall(function()
     _G.InventoryWatcher = loadstring(game:HttpGet("https://raw.githubusercontent.com/c3iv3r/a/refs/heads/main/utils/fishit/inventdetect3.lua"))()
 end)]]
+
+_G.SpamFishingActive = false
+
+-- Spawn loop langsung
+task.spawn(function()
+    while task.wait() do
+        if _G.SpamFishingActive and _G.NetPath then
+            pcall(function()
+                _G.NetPath["RE/FishingCompleted"]:FireServer()
+            end)
+        end
+    end
+end)
 
 -- Cache helper results
 local listRod = Helpers.getFishingRodNames()
@@ -135,17 +148,57 @@ endColor = endColor or Color3.fromRGB(0, 200, 200)        -- Teal
 end
 
 local Window = Noctis:Window({
-	Title = "HellZone",
-	Subtitle = "Fish It | v1.0.1",
-	Size = UDim2.fromOffset(600, 300),
-	DragStyle = 1,
-	DisabledWindowControls = {},
-	OpenButtonImage = "rbxassetid://123156553209294", 
-	OpenButtonSize = UDim2.fromOffset(32, 32),
-	OpenButtonPosition = UDim2.fromScale(0.45, 0.1),
-	Keybind = Enum.KeyCode.RightControl,
-	AcrylicBlur = true,
+    Title = "HellZone",
+    Subtitle = "Fish It | v0.1 (Beta Version)",
+    Size = UDim2.fromOffset(600, 300),
+    DragStyle = 1,
+    DisabledWindowControls = {},
+    OpenButtonImage = "rbxassetid://77461382621338",
+    OpenButtonSize = UDim2.fromOffset(48, 48), -- Size sedang
+    OpenButtonPosition = UDim2.fromScale(0.45, 0.1),
+    Keybind = Enum.KeyCode.RightControl,
+    AcrylicBlur = true,
 })
+
+-- Menambahkan efek glow pelangi
+task.defer(function()
+    local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    local button = playerGui:FindFirstChildWhichIsA("ImageButton", true)
+
+    if button then
+        -- Sudut halus
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = button
+
+        -- Stroke pelangi
+        local rainbowStroke = Instance.new("UIStroke")
+        rainbowStroke.Thickness = 2.5
+        rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        rainbowStroke.Transparency = 0
+        rainbowStroke.Color = Color3.fromRGB(255, 0, 0) -- Akan dianimasi
+        rainbowStroke.Parent = button
+
+        -- Animasi warna pelangi
+        task.spawn(function()
+            local hue = 0
+            while button.Parent ~= nil do
+                hue = (hue + 0.005) % 1
+                rainbowStroke.Color = Color3.fromHSV(hue, 1, 1)
+                task.wait(0.02)
+            end
+        end)
+
+        -- Efek bayangan luar
+        local uiGradient = Instance.new("UIGradient")
+        uiGradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)),
+            ColorSequenceKeypoint.new(1, Color3.fromHSV(1, 1, 1))
+        }
+        uiGradient.Rotation = 45
+        uiGradient.Parent = button
+    end
+end)
 
 FeatureManager:InitAll(Window, Logger)
 local F = FeatureManager:CreateProxy(Window, Logger)
@@ -163,10 +216,14 @@ local Setting    = Group:Tab({ Title = "Settings", Image = "settings"})
 
 --- === CHANGELOG & DISCORD LINK === ---
 local CHANGELOG = table.concat({
-    "[+] Added Auto Favorite by Mutations"
+    "[+] Added Hide Nickname",
+    "[/] Changed Ghostfinn Progress, now real-time progress",
+    "[/] Impeoved Auto Favorite, now support Mutation + Rarity or etc",
+    "[/] Fixed & Improved Balatant",
+    "[/] Improved No Animation"
 }, "\n")
 local DISCORD = table.concat({
-    "https://discord.gg/uQwTApuTSa",
+    "https://discord.gg/W7QvDkeU",
 }, "\n")
 
 --- === HOME === ---
@@ -298,12 +355,14 @@ updateRarest()]]
 --- === FISHING === ---
 local FishingSection = Main:Section({ Title = "Fishing", Opened = false })
 
--- Create proxy for clean access (replaces all Get() and Init() calls)
-
-
 -- State tracking
 local currentMethod = "V1" -- default
 local isAutoFishActive = false
+
+-- Balatant V5 delay configs
+local balatantWaitWindow = 0.6         -- Default 600ms (ReplicateText check window)
+local balatantSafetyTimeout = 3        -- Default 3s (Safety net timeout)
+-- balatantBaitSpawnedDelay REMOVED - now hardcoded to 0 in module
 
 -- Function untuk stop semua
 local function stopAllAutoFish()
@@ -331,8 +390,13 @@ local function startAutoFish(method)
         F.AutoFishV2:Start({ mode = "Fast" })
     elseif method == "V3" and F.AutoFishV3 and F.AutoFishV3.Start then
         F.AutoFishV3:Start({ mode = "Fast" })
-    elseif method == "V4" and F.Balatant and F.Balatant then
-        F.Balatant:Start({ mode = "Fast" })
+    elseif method == "Balatant" and F.Balatant and F.Balatant.Start then
+        F.Balatant:Start({
+            mode = "Fast",
+            waitWindow = balatantWaitWindow,
+            safetyTimeout = balatantSafetyTimeout
+            -- baitSpawnedDelay dihapus - pakai hardcoded value
+        })
     end
 end
 
@@ -354,7 +418,7 @@ local autofish_dd = FishingSection:Dropdown({
         elseif v == "Normal" then
             currentMethod = "V3"
         elseif v == "Balatant (Unstable)" then
-            currentMethod = "V4"
+            currentMethod = "Balatant"
         end
         
         -- Kalo lagi aktif, restart dengan method baru
@@ -363,6 +427,42 @@ local autofish_dd = FishingSection:Dropdown({
         end
     end
 }, "autofishdd")
+
+-- Detection Window Input (WAIT_WINDOW)
+local baitdelay_in = FishingSection:Input({
+    Name = "<b>Detection Window</b>",
+    Placeholder = "e.g 0.6 (seconds)",
+    AcceptedCharacters = "Numbers",
+    Callback = function(v)
+        local n = tonumber(v)
+        if n and n >= 0.05 and n <= 5 then
+            balatantWaitWindow = n
+            
+            -- Update runtime kalo Balatant lagi jalan
+            if isAutoFishActive and currentMethod == "Balatant" and F.Balatant then
+                F.Balatant:SetDelays(balatantWaitWindow, nil)
+            end
+        end
+    end
+}, "baitdelayin")
+
+-- Cast Delay Input (SAFETY_TIMEOUT)
+local chargedelay_in = FishingSection:Input({
+    Name = "<b>Cast Delay</b>",
+    Placeholder = "e.g 3 (seconds)",
+    AcceptedCharacters = "Numbers",
+    Callback = function(v)
+        local n = tonumber(v)
+        if n and n >= 1 and n <= 30 then
+            balatantSafetyTimeout = n
+            
+            -- Update runtime kalo Balatant lagi jalan
+            if isAutoFishActive and currentMethod == "Balatant" and F.Balatant then
+                F.Balatant:SetDelays(nil, balatantSafetyTimeout)
+            end
+        end
+    end
+}, "chargedelayin")
 
 local autofish_tgl = FishingSection:Toggle({
     Title = "<b>Auto Fishing</b>",
@@ -379,6 +479,15 @@ local autofish_tgl = FishingSection:Toggle({
         end
     end
 }, "autofishtgl")
+
+local autofinish_tgl = FishingSection:Toggle({
+    Title = "<b>Auto Finish Fishing</b>",
+    Default = false,
+    Callback = function(v)
+        _G.SpamFishingActive = v
+    end
+}, "autofinishtgl")
+        
 
 local noanim_tgl = FishingSection:Toggle({
 	Title = "<b>No Animation</b>",
@@ -804,7 +913,9 @@ TradeSection:Button({
 	Title = "<b>Refresh Player List</b>",
 	Callback = function()
         local names = Helpers.listPlayers(true)
-        if tradeplayer_dd.Refresh then tradeplayer_dd:SetValues(names) end
+        if tradeplayer_dd.Refresh then 
+            tradeplayer_dd:ClearOptions()
+            tradeplayer_dd:SetValues(names) end
         Window:Notify({ Title = "Players", Desc = ("Online: %d"):format(#names), Duration = 2 })
     end
 })
@@ -1320,7 +1431,9 @@ PlayerSection:Button({
 	Title = "<b>Refresh Player List</b>",
 	Callback = function()
         local names = Helpers.listPlayers(true)
-        if teleplayer_dd.Refresh then teleplayer_dd:SetValues(names) end
+        if teleplayer_dd.Refresh then 
+            teleplayer_dd:ClearOptions()
+            teleplayer_dd:SetValues(names) end
         Window:Notify({ Title = "Players", Desc = ("Online: %d"):format(#names), Duration = 2 })
     end
 })
