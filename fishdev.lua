@@ -147,64 +147,50 @@ endColor = endColor or Color3.fromRGB(0, 200, 200)        -- Teal
     return result
 end
 
+-- Create Window
 local Window = Noctis:Window({
     Title = "HellZone",
     Subtitle = "Fish It | v0.1 (Beta Version)",
     Size = UDim2.fromOffset(600, 300),
     DragStyle = 1,
     DisabledWindowControls = {},
-    OpenButtonImage = "rbxassetid://77461382621338",
-    OpenButtonSize = UDim2.fromOffset(48, 48),
+    OpenButtonImage = "rbxassetid://77461382621338",  -- Logo kamu
+    OpenButtonSize = UDim2.fromOffset(48, 48), -- ✅ Diperbesar
     OpenButtonPosition = UDim2.fromScale(0.45, 0.1),
     Keybind = Enum.KeyCode.RightControl,
     AcrylicBlur = true,
 })
 
--- INI BAGIAN EFEK (WAJIB DITEMPATKAN SETELAH WINDOW DIBUAT)
-local OpenButtonImageID = "rbxassetid://77461382621338"
+-- 🔵 Tunggu UI terbentuk, lalu modifikasi tombol open
+task.spawn(function()
+    task.wait(1) -- beri waktu UI muncul
 
-task.defer(function()
-    local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    local targetButton = nil
+    local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    local OpenButton = PlayerGui:FindFirstChildOfClass("ScreenGui"):FindFirstChildWhichIsA("ImageButton", true)
 
-    -- Cari tombol berdasarkan Image ID
-    for _, descendant in ipairs(playerGui:GetDescendants()) do
-        if descendant:IsA("ImageButton") or descendant:IsA("ImageLabel") then
-            if descendant.Image == OpenButtonImageID then
-                targetButton = descendant
-                break
-            end
-        end
-    end
+    if OpenButton then
+        -- ✅ Buat sudut halus
+        local UICorner = Instance.new("UICorner")
+        UICorner.CornerRadius = UDim.new(0.3, 0)
+        UICorner.Parent = OpenButton
 
-    if targetButton then
-        -- Sudut tumpul
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 12)
-        corner.Parent = targetButton
+        -- ✅ Buat border pelangi
+        local UIStroke = Instance.new("UIStroke")
+        UIStroke.Thickness = 2.5
+        UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        UIStroke.Parent = OpenButton
 
-        -- Glow pelangi
-        local rainbowStroke = Instance.new("UIStroke")
-        rainbowStroke.Thickness = 2.5
-        rainbowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        rainbowStroke.Transparency = 0
-        rainbowStroke.Color = Color3.fromRGB(255, 0, 0)
-        rainbowStroke.Parent = targetButton
-
-        -- Animasi pelangi
+        -- 🌈 Animasi warna pelangi
         task.spawn(function()
             local hue = 0
-            while targetButton.Parent ~= nil do
-                hue = (hue + 0.005) % 1
-                rainbowStroke.Color = Color3.fromHSV(hue, 1, 1)
-                task.wait(0.02)
+            while task.wait(0.05) do
+                hue = hue + 0.01
+                if hue > 1 then hue = 0 end
+                UIStroke.Color = Color3.fromHSV(hue, 1, 1)
             end
         end)
-    else
-        warn("⚠ Tidak menemukan tombol open window dengan ImageID:", OpenButtonImageID)
     end
 end)
-
 FeatureManager:InitAll(Window, Logger)
 local F = FeatureManager:CreateProxy(Window, Logger)
 
