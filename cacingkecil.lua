@@ -655,6 +655,229 @@ local AutoFarmTab = AllMenu:Tab({
     Icon = "leaf"
 })
 
+-- =======[ Coin Farming Feature ]========
+-- Choose between "Tropical Grove" or "Kohana Volcano" (uses farmLocations table if present).
+-- Enter target coins; when reached, respawn and stop, leaving character at spawn.
+
+local CoinFarm = {
+    Enabled = false,
+    Location = "Tropical Grove", -- or "Kohana"
+    TargetCoins = 10000,
+    Thread = nil
+}
+
+-- Helper: ensure all other features off
+local function disableAllFeatures()
+    pcall(function() featureState.AutoFish = false end)
+    pcall(function() FuncAutoFish.autofish5x = false end)
+    pcall(function() _G.stopSpam() end)
+    pcall(function() _G.StopRecastSpam() end)
+    pcall(function() StopAutoFish5X() end)
+    pcall(function() _G.StopFishing() end)
+    pcall(function() _G.ToggleAutoClick(false) end)
+    pcall(function() _G.LegitFishing.Enabled = false end)
+    pcall(function() _G.sellActive = false end)
+    -- additional flags commonly used
+    pcall(function() _G.AntiStuckEnabled = false end)
+    pcall(function() _G.AutoFishState.IsActive = false end)
+end
+
+-- Helper: teleport to random spot in chosen farm location (uses farmLocations if present)
+local function teleportToFarmSpot(locationName)
+    local success, spots = pcall(function() return farmLocations[locationName] end)
+    if success and spots and #spots > 0 then
+        local spot = spots[math.random(1, #spots)]
+        local char = workspace:FindFirstChild("Characters") and workspace.Characters:FindFirstChild(LocalPlayer.Name) or LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = spot + Vector3.new(0, 5, 0)
+            return true
+        end
+    end
+    return false
+end
+
+-- Helper: wait until leaderstats Coins updated (safe)
+local function getPlayerCoins()
+    local stats = LocalPlayer:FindFirstChild("leaderstats")
+    if stats and stats:FindFirstChild("Coins") then
+        return tonumber(stats.Coins.Value) or 0
+    end
+    return 0
+end
+
+-- Main farming thread
+local function startCoinFarming()
+    if CoinFarm.Enabled then return end
+    CoinFarm.Enabled = true
+
+    -- Instead of disabling all other previously activated features,
+    -- we will preserve their state. Only enable what coin farming needs.
+    -- Save previous sellActive state to restore later.
+    CoinFarm.PrevSellActive = _G.sellActive
+
+    -- Ensure auto-sell is ON during coin farming
+    pcall(function() _G.sellActive = true end)
+
+    -- enable legit fishing mode for stability (but do not turn off other features)
+    pcall(function()
+        CoinFarm.PrevLegitState = (_G.LegitFishing and _G.LegitFishing.Enabled) or false
+        _G.LegitFishing = _G.LegitFishing or {}
+        _G.LegitFishing.Enabled = true
+        _G.LegitFishing.ClickInterval = _G.LegitFishing.ClickInterval or _G.SPEED_LEGIT or 0.05
+        if type(_G.ToggleAutoClick) == "function" then
+            _G.ToggleAutoClick(true)
+        end
+    end)
+
+    CoinFarm.Thread = task.spawn(function()
+        -- teleport to selected farm spot initially
+        teleportToFarmSpot(CoinFarm.Location)
+
+        -- loop until target coins reached or disabled
+        while CoinFarm.Enabled do
+            local coins = getPlayerCoins()
+            if coins >= (tonumber(CoinFarm.TargetCoins) or 0) then
+                -- reached target: respawn and stop, leaving character at spawn
+                pcall(function()
+                    NotifySuccess("Coin Farm", "Target coins reached: " .. tostring(coins) .. ". Respawning and stopping.", 5)
+                end)
+                -- respawn character
+                pcall(function()
+                    LocalPlayer:LoadCharacter()
+                end)
+                -- ensure farming stops
+                CoinFarm.Enabled = false
+                -- leave character at spawn (do nothing further)
+                break
+            end
+
+            -- ensure at farm spot (occasionally teleport if drifted)
+            pcall(function()
+                if math.random() < 0.02 then
+                    teleportToFarmSpot(CoinFarm.Location)
+                end
+            end)
+
+            -- small wait to avoid busy loop; legit clicking will handle minigame itself
+            task.wait(0.5)
+        end
+
+        -- cleanup when stopping (restore previous sellActive and legit state)
+        pcall(function()
+            -- restore previous sellActive state
+            if CoinFarm.PrevSellActive ~= nil then
+                _G.sellActive = CoinFarm.PrevSellActive
+            end
+            -- restore previous legit state
+            local prevLegit = CoinFarm.PrevLegitState or false
+            _G.LegitFishing = _G.LegitFishing or {}
+            _G.LegitFishing.Enabled = prevLegit
+            if type(_G.ToggleAutoClick) == "function" and not prevLegit then
+                pcall(function() _G.ToggleAutoClick(false) end)
+            end
+        end)
+    end)
+end
+local function stopCoinFarming()
+    CoinFarm.Enabled = false
+    if CoinFarm.Thread and coroutine.status(CoinFarm.Thread) ~= "dead" then
+        task.cancel(CoinFarm.Thread)
+    end
+    CoinFarm.Thread = nil
+
+    -- disable legit click only if we enabled it (restore previous state)
+    pcall(function()
+        local prevLegit = CoinFarm.PrevLegitState or false
+        _G.LegitFishing = _G.LegitFishing or {}
+        _G.LegitFishing.Enabled = prevLegit
+        if type(_G.ToggleAutoClick) == "function" and not prevLegit then
+            pcall(function() _G.ToggleAutoClick(false) end)
+        end
+    end)
+
+    -- restore sellActive to previous state if saved
+    pcall(function()
+        if CoinFarm.PrevSellActive ~= nil then
+            _G.sellActive = CoinFarm.PrevSellActive
+            CoinFarm.PrevSellActive = nil
+        end
+    end)
+
+    NotifyWarning("Coin Farm", "Coin farming stopped.", 3)
+end
+
+-- UI: add controls to AutoFarmTab if exists, else create in Home
+local farmSection = nil
+if AutoFarmTab then
+    farmSection = AutoFarmTab:Section({
+        Title = "Coin Farming",
+        TextSize = 20,
+        TextXAlignment = "Center",
+        Opened = true
+    })
+else
+    farmSection = Home:Section({
+        Title = "Coin Farming",
+        TextSize = 20,
+        TextXAlignment = "Center",
+        Opened = true
+    })
+end
+
+farmSection:Dropdown({
+    Title = "Farm Location",
+    Values = {"Tropical Grove", "Kohana", "Vulcano"},
+    Multi = false,
+    Default = "Tropical Grove",
+    Callback = function(value)
+        CoinFarm.Location = value
+        NotifyInfo("Coin Farm", "Location set to: " .. tostring(value), 2)
+    end
+})
+
+farmSection:Input({
+    Title = "Target Coins",
+    Value = tostring(CoinFarm.TargetCoins),
+    Placeholder = "Enter coin amount to reach...",
+    Callback = function(text)
+        local n = tonumber(text)
+        if n and n > 0 then
+            CoinFarm.TargetCoins = n
+            NotifyInfo("Coin Farm", "Target coins set to: " .. tostring(n), 2)
+        else
+            NotifyWarning("Coin Farm", "Invalid target value.")
+        end
+    end
+})
+
+farmSection:Toggle({
+    Title = "Enable Coin Farming",
+    Value = false,
+    Callback = function(state)
+        if state then
+            startCoinFarming()
+            NotifySuccess("Coin Farm", "Started farming at " .. tostring(CoinFarm.Location), 3)
+        else
+            stopCoinFarming()
+        end
+    end
+})
+
+farmSection:Button({
+    Title = "Stop Coin Farming",
+    Callback = function()
+        stopCoinFarming()
+    end
+})
+
+-- Ensure feature defaults are off on load
+CoinFarm.Enabled = false
+pcall(function() _G.LegitFishing.Enabled = false end)
+-- =======[ End Coin Farming Feature ]========
+
+
+
 local AutoFarmArt = AllMenu:Tab({
     Title = "Auto Farm Artifact",
     Icon = "flask-round"
@@ -706,6 +929,45 @@ Framework : Wind Ui
 free script (not sell) 
 ]]
 })
+-- Quick access button to open Server List from Home
+Home:Button({
+    Title = "Open Server List",
+    Desc = "Quickly fetch and display server list in Server Tab",
+    Callback = function()
+        -- Try call the existing Show Server List button callback if available
+        pcall(function()
+            if _G.ShowServersButton and type(_G.ShowServersButton.Callback) == "function" then
+                _G.ShowServersButton:Press() -- if the UI library supports pressing the button
+            end
+        end)
+
+        -- Fallback: directly call fetchPublicServers and populate UI similar to ShowServersButton
+        pcall(function()
+            local list = fetchPublicServers()
+            if not list then
+                NotifyError("Server List", "Failed to fetch servers.")
+                return
+            end
+            -- simulate pressing the Show Server List button by creating entries
+            _G.ServersShown = true
+            for _, server in ipairs(list) do
+                local id = server.id
+                local players = server.playing or 0
+                local maxp = server.maxPlayers or 0
+                local buttonServer = _G.ServerListAll:Button({
+                    Title = "Server",
+                    Desc = "Player: " .. tostring(players) .. "/" .. tostring(maxp),
+                    Callback = function()
+                        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, id, game.Players.LocalPlayer)
+                    end
+                })
+                table.insert(_G.ButtonList, buttonServer)
+            end
+            NotifySuccess("Server List", "Server list populated from Home quick button.", 3)
+        end)
+    end
+})
+
 
 Home:Space()
 
@@ -738,6 +1000,80 @@ _G.ServerListAll = _G.ServerPage:Section({
     TextSize = 22,
     TextXAlignment = "Center"
 })
+
+-- =======[ Auto-populate Server List on Load ]========
+local function populateServerListButtons(serverList)
+    -- clear previous buttons
+    if _G.ButtonList then
+        for _, btn in ipairs(_G.ButtonList) do
+            pcall(function() btn:Remove() end)
+        end
+    end
+    _G.ButtonList = {}
+
+    for _, server in ipairs(serverList) do
+        local id = server.id
+        local players = server.playing or 0
+        local maxp = server.maxPlayers or 0
+        local ping = server.ping or 0
+        local desc = "Players: " .. tostring(players) .. "/" .. tostring(maxp) .. "\nPing: " .. tostring(ping)
+        local buttonServer = _G.ServerListAll:Button({
+            Title = "Server: " .. tostring(id),
+            Desc = desc,
+            Locked = false,
+            Icon = "",
+            Callback = function()
+                pcall(function()
+                    NotifyInfo("Teleport", "Teleporting to server " .. tostring(id) .. "...", 3)
+                    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, id, game.Players.LocalPlayer)
+                end)
+            end
+        })
+        buttonServer:SetTitle("Server")
+        buttonServer:SetDesc("Player: " .. tostring(players) .. "/" .. tostring(maxp) .. "\nPing: " .. tostring(ping))
+        table.insert(_G.ButtonList, buttonServer)
+    end
+
+    if #_G.ButtonList == 0 then
+        _G.ServerListAll:Button({
+            Title = "No Servers Found",
+            Desc = "Tidak ada server yang ditemukan.",
+            Locked = true,
+            Callback = function() end
+        })
+    end
+end
+
+-- Fetch servers and populate (non-blocking)
+pcall(function()
+    local servers = fetchPublicServers()
+    if servers and type(servers) == "table" and #servers > 0 then
+        populateServerListButtons(servers)
+        NotifySuccess("Server List", "Server list loaded (" .. tostring(#servers) .. ")", 3)
+    else
+        NotifyInfo("Server List", "No public servers found or failed to fetch.", 3)
+    end
+end)
+
+-- Also add a refresh button inside the Server section to re-fetch manually
+_G.ServerListAll:Button({
+    Title = "Refresh Server List",
+    Desc = "Re-fetch public servers and update list.",
+    Callback = function()
+        pcall(function()
+            local servers = fetchPublicServers()
+            if servers and type(servers) == "table" and #servers > 0 then
+                populateServerListButtons(servers)
+                NotifySuccess("Server List", "Server list refreshed (" .. tostring(#servers) .. ")", 3)
+            else
+                NotifyError("Server List", "Failed to refresh server list.", 3)
+            end
+        end)
+    end
+})
+-- =======[ End Auto-populate Server List on Load ]========
+
+
 -- =======[ Public Server List + Event Scanner ]========
 -- Adds buttons to fetch public servers and optionally teleport to scan for in-game events.
 
