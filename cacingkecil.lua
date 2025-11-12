@@ -706,6 +706,45 @@ Framework : Wind Ui
 free script (not sell) 
 ]]
 })
+-- Quick access button to open Server List from Home
+Home:Button({
+    Title = "Open Server List",
+    Desc = "Quickly fetch and display server list in Server Tab",
+    Callback = function()
+        -- Try call the existing Show Server List button callback if available
+        pcall(function()
+            if _G.ShowServersButton and type(_G.ShowServersButton.Callback) == "function" then
+                _G.ShowServersButton:Press() -- if the UI library supports pressing the button
+            end
+        end)
+
+        -- Fallback: directly call fetchPublicServers and populate UI similar to ShowServersButton
+        pcall(function()
+            local list = fetchPublicServers()
+            if not list then
+                NotifyError("Server List", "Failed to fetch servers.")
+                return
+            end
+            -- simulate pressing the Show Server List button by creating entries
+            _G.ServersShown = true
+            for _, server in ipairs(list) do
+                local id = server.id
+                local players = server.playing or 0
+                local maxp = server.maxPlayers or 0
+                local buttonServer = _G.ServerListAll:Button({
+                    Title = "Server",
+                    Desc = "Player: " .. tostring(players) .. "/" .. tostring(maxp),
+                    Callback = function()
+                        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, id, game.Players.LocalPlayer)
+                    end
+                })
+                table.insert(_G.ButtonList, buttonServer)
+            end
+            NotifySuccess("Server List", "Server list populated from Home quick button.", 3)
+        end)
+    end
+})
+
 
 Home:Space()
 
@@ -738,6 +777,80 @@ _G.ServerListAll = _G.ServerPage:Section({
     TextSize = 22,
     TextXAlignment = "Center"
 })
+
+-- =======[ Auto-populate Server List on Load ]========
+local function populateServerListButtons(serverList)
+    -- clear previous buttons
+    if _G.ButtonList then
+        for _, btn in ipairs(_G.ButtonList) do
+            pcall(function() btn:Remove() end)
+        end
+    end
+    _G.ButtonList = {}
+
+    for _, server in ipairs(serverList) do
+        local id = server.id
+        local players = server.playing or 0
+        local maxp = server.maxPlayers or 0
+        local ping = server.ping or 0
+        local desc = "Players: " .. tostring(players) .. "/" .. tostring(maxp) .. "\nPing: " .. tostring(ping)
+        local buttonServer = _G.ServerListAll:Button({
+            Title = "Server: " .. tostring(id),
+            Desc = desc,
+            Locked = false,
+            Icon = "",
+            Callback = function()
+                pcall(function()
+                    NotifyInfo("Teleport", "Teleporting to server " .. tostring(id) .. "...", 3)
+                    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, id, game.Players.LocalPlayer)
+                end)
+            end
+        })
+        buttonServer:SetTitle("Server")
+        buttonServer:SetDesc("Player: " .. tostring(players) .. "/" .. tostring(maxp) .. "\nPing: " .. tostring(ping))
+        table.insert(_G.ButtonList, buttonServer)
+    end
+
+    if #_G.ButtonList == 0 then
+        _G.ServerListAll:Button({
+            Title = "No Servers Found",
+            Desc = "Tidak ada server yang ditemukan.",
+            Locked = true,
+            Callback = function() end
+        })
+    end
+end
+
+-- Fetch servers and populate (non-blocking)
+pcall(function()
+    local servers = fetchPublicServers()
+    if servers and type(servers) == "table" and #servers > 0 then
+        populateServerListButtons(servers)
+        NotifySuccess("Server List", "Server list loaded (" .. tostring(#servers) .. ")", 3)
+    else
+        NotifyInfo("Server List", "No public servers found or failed to fetch.", 3)
+    end
+end)
+
+-- Also add a refresh button inside the Server section to re-fetch manually
+_G.ServerListAll:Button({
+    Title = "Refresh Server List",
+    Desc = "Re-fetch public servers and update list.",
+    Callback = function()
+        pcall(function()
+            local servers = fetchPublicServers()
+            if servers and type(servers) == "table" and #servers > 0 then
+                populateServerListButtons(servers)
+                NotifySuccess("Server List", "Server list refreshed (" .. tostring(#servers) .. ")", 3)
+            else
+                NotifyError("Server List", "Failed to refresh server list.", 3)
+            end
+        end)
+    end
+})
+-- =======[ End Auto-populate Server List on Load ]========
+
+
 -- =======[ Public Server List + Event Scanner ]========
 -- Adds buttons to fetch public servers and optionally teleport to scan for in-game events.
 
