@@ -498,7 +498,6 @@ local function NotifyWarning(title, message, duration)
     })
 end
 
-
 ------------------------------------------
 ----- =======[ CHECK DATA ]
 -----------------------------------------
@@ -545,11 +544,9 @@ task.spawn(function()
     end
 end)
 
-
 -------------------------------------------
 ----- =======[ LOAD WINDOW ]
 -------------------------------------------
-
 
 WindUI:AddTheme({
     Name = "Royal Void",
@@ -789,7 +786,6 @@ _G.REFishingStopped = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].n
 _G.RFCancelFishingInputs = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/CancelFishingInputs"]
 _G.REUpdateChargeState = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/UpdateChargeState"]
 
-
 _G.StopFishing = function()
     _G.RFCancelFishingInputs:InvokeServer()
     firesignal(_G.REFishingStopped.OnClientEvent)
@@ -805,15 +801,12 @@ local FuncAutoFish = {
     CatchLast = tick(),
 }
 
-
-
 _G.REFishCaught = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/FishCaught"]
 _G.REPlayFishingEffect = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/PlayFishingEffect"]
 _G.equipRemote = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipToolFromHotbar"]
 _G.REObtainedNewFishNotification = ReplicatedStorage
     .Packages._Index["sleitnick_net@0.2.0"]
     .net["RE/ObtainedNewFishNotification"]
-
 
 _G.isSpamming = false
 _G.rSpamming = false
@@ -898,7 +891,6 @@ _G.REPlayFishingEffect.OnClientEvent:Connect(function(player, head, data)
     end
 end)
 
-
 _G.REObtainedNewFishNotification.OnClientEvent:Connect(function(...)
     _G.lastFishTime = tick()
 end)
@@ -959,7 +951,6 @@ function StopCast()
     _G.StopFishing()
 end
 
-
 function StartAutoFish5X()
     FuncAutoFish.autofish5x = true
     FuncAutoFish.CatchLast5x = tick()
@@ -982,7 +973,6 @@ end
 INI AUTO FISH LEGIT 
 
 ]]
-
 
 _G.RunService = game:GetService("RunService")
 _G.ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1202,9 +1192,7 @@ _G.FishSec:Toggle({
 	end
 })
 
-
 _G.FishSec:Space()
-
 
 _G.FishSec:Button({
     Title = "Stop Fishing",
@@ -1222,10 +1210,8 @@ _G.FishSec:Button({
 
 _G.FishSec:Space()
 
-
 _G.REReplicateCutscene = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ReplicateCutscene"]
 _G.BlockCutsceneEnabled = false
-
 
 _G.FishSec:Toggle({
     Title = "Block Cutscene",
@@ -1304,7 +1290,6 @@ _G.FishSec:Toggle({
         ToggleAutoSellMythic(state)
     end
 })
-
 
 function sellAllFishes()
     local charFolder = workspace:FindFirstChild("Characters")
@@ -1407,7 +1392,6 @@ _G.FishSec:Space()
 ----- =======[ AUTO FAV TAB ]
 -------------------------------------------
 
-
 local GlobalFav = {
     REObtainedNewFishNotification = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net
     ["RE/ObtainedNewFishNotification"],
@@ -1483,7 +1467,6 @@ _G.FishList = AutoFav:Dropdown({
     end
 })
 
-
 AutoFav:Dropdown({
     Title = "Auto Favorite Variants",
     Values = GlobalFav.Variants,
@@ -1502,7 +1485,6 @@ AutoFav:Dropdown({
         NotifyInfo("Auto Favorite", "Favoriting active for variants: " .. HttpService:JSONEncode(selectedVariants))
     end
 })
-
 
 GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _, data)
     if not GlobalFav.AutoFavoriteEnabled then return end
@@ -1536,11 +1518,9 @@ GlobalFav.REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _
     end
 end)
 
-
 -------------------------------------------
 ----- =======[ AUTO FARM TAB ]
 -------------------------------------------
-
 
 local floatPlatform = nil
 
@@ -1580,8 +1560,6 @@ local function floatingPlat(enabled)
     end
 end
 
-
-
 local workspace = game:GetService("Workspace")
 
 local BlockEnabled = false
@@ -1601,7 +1579,6 @@ local function createLocalBlock(size, position, color)
     return part
 end
 
-
 local function createBlockUnderPlayer()
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         local hrp = LocalPlayer.Character.HumanoidRootPart
@@ -1611,7 +1588,6 @@ local function createBlockUnderPlayer()
         createLocalBlock(Vector3.new(6, 1, 6), hrp.Position - Vector3.new(0, 3, 0), Color3.fromRGB(0, 0, 255))
     end
 end
-
 
 local function ToggleBlockOnce(state)
     BlockEnabled = state
@@ -2047,7 +2023,6 @@ local AutoFarm = AutoFarmTab:Toggle({
 
 myConfig:Register("AutoFarmStart", AutoFarm)
 
-
 local eventNamesForDropdown = {}
 for name in pairs(eventMap) do
     table.insert(eventNamesForDropdown, name)
@@ -2063,7 +2038,6 @@ AutoFarmTab:Dropdown({
         NotifyInfo("Event Selected", "Now monitoring event: " .. selectedEvent)
     end
 })
-
 
 -------------------------------------------
 ----- =======[ ARTIFACT TAB ]
@@ -2095,7 +2069,6 @@ _G.UnlockTemple = function()
         NotifySuccess("Temple Unlock", "All Artifacts placed successfully!")
     end)
 end
-
 
 _G.ArtifactSpots = {
     ["Spot 1"] = CFrame.new(1404.16931, 6.38866091, 118.118126, -0.964853525, 8.69606822e-08, 0.262788326, 9.85441346e-08,
@@ -2363,7 +2336,6 @@ local oldNamecall = mt.__namecall
 setreadonly(mt, false)
 _G.REEquipItem = game:GetService("ReplicatedStorage").Packages._Index["sleitnick_net@0.2.0"].net["RE/EquipItem"]
 
-
 mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
@@ -2440,7 +2412,6 @@ pcall(function()
         end
     end
 end)
-
 
 -- =======================================================
 -- DEFINISI UI
@@ -2791,7 +2762,6 @@ _G.DStones:Button({
     end
 })
 
-
 -------------------------------------------
 ----- =======[ PLAYER TAB ]
 -------------------------------------------
@@ -2870,7 +2840,6 @@ local function getPlayerList()
     return list
 end
 
-
 local function teleportToPlayerExact(target)
     local characters = workspace:FindFirstChild("Characters")
     if not characters then return end
@@ -2919,7 +2888,6 @@ end)
 
 refreshDropdown()
 
-
 local defaultMinZoom = LocalPlayer.CameraMinZoomDistance
 local defaultMaxZoom = LocalPlayer.CameraMaxZoomDistance
 
@@ -2937,7 +2905,6 @@ Player:Toggle({
         end
     end
 })
-
 
 local function accessAllBoats()
     local vehicles = workspace:FindFirstChild("Vehicles")
@@ -3123,7 +3090,6 @@ myConfig:Register("JumpPower", Jp)
 ----- =======[ UTILITY TAB ]
 -------------------------------------------
 
-
 _G.RFRedeemCode = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RF/RedeemCode"]
 
 _G.RedeemCodes = {
@@ -3249,7 +3215,6 @@ local WeatherDropdown = Utils:Dropdown({
 })
 
 myConfig:Register("WeatherDropdown", WeatherDropdown)
-
 
 local RodItemsPath = game:GetService("ReplicatedStorage"):WaitForChild("Items")
 
@@ -3381,7 +3346,6 @@ Utils:Dropdown({
         end
     end
 })
-
 
 local baitOptions = {}
 for _, bait in pairs(BaitsPath:GetChildren()) do
@@ -3557,14 +3521,12 @@ local net = ReplicatedStorage:WaitForChild("Packages")
     :WaitForChild("sleitnick_net@0.2.0")
     :WaitForChild("net")
 
-
 local npcCFrame = CFrame.new(
     66.866745, 4.62500143, 2858.98535,
     -0.981261611, 5.77215005e-08, -0.192680314,
     6.94250204e-08, 1, -5.39889484e-08,
     0.192680314, -6.63541186e-08, -0.981261611
 )
-
 
 local function FadeScreen(duration)
     local gui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
@@ -3633,7 +3595,6 @@ Utils:Dropdown({
     end,
 })
 
-
 local baitOptions = {}
 local baitData = {}
 
@@ -3682,7 +3643,6 @@ for _, npc in pairs(npcFolder:GetChildren()) do
     end
 end
 
-
 Utils:Dropdown({
     Title = "NPC",
     Desc = "Select NPC to Teleport",
@@ -3711,7 +3671,6 @@ Utils:Dropdown({
 ----- =======[ SETTINGS TAB ]
 -------------------------------------------
 
-
 _G.AntiAFKEnabled = true
 _G.AFKConnection = nil
 
@@ -3724,7 +3683,6 @@ SettingsTab:Toggle({
             if AFKConnection then
                 AFKConnection:Disconnect()
             end
-
 
             local VirtualUser = game:GetService("VirtualUser")
 
@@ -4145,69 +4103,3 @@ local gameAnimToggle = X5SpeedTab:Toggle({
 myConfig:Register("DisableGameAnimations", gameAnimToggle)
 
 print("✅ X5 Speed Tab Loaded!")
-
-
-
--- =======[ Coin Farm In-Tab Info (replaces overlay) ]========
--- Creates two small info entries in the Coin Farming section to show current coins and fish caught.
-
-_G.CoinFarmInfo = _G.CoinFarmInfo or {}
-_G.CoinFarmInfo.Coins = 0
-_G.CoinFarmInfo.Fish = _G.Overlay and _G.Overlay.FishCaught or 0
-_G.CoinFarmInfo.Buttons = _G.CoinFarmInfo.Buttons or {}
-
--- helper to get coins safely
-local function __getCoinsForUI()
-    local v = 0
-    pcall(function()
-        local s = game.Players.LocalPlayer:FindFirstChild("leaderstats")
-        if s and s:FindFirstChild("Coins") then v = tonumber(s.Coins.Value) or 0 end
-    end)
-    return v
-end
-
--- create or update info buttons in farmSection (if exists)
-pcall(function()
-    if farmSection then
-        -- remove old info buttons if present
-        if _G.CoinFarmInfo.Buttons and #_G.CoinFarmInfo.Buttons > 0 then
-            for _,b in ipairs(_G.CoinFarmInfo.Buttons) do
-                pcall(function() b:Remove() end)
-            end
-            _G.CoinFarmInfo.Buttons = {}
-        end
-
-        local coinsBtn = farmSection:Button({
-            Title = "Coins: 0",
-            Desc = "Current coins (updates while farming).",
-            Locked = true,
-            Callback = function() end
-        })
-        local fishBtn = farmSection:Button({
-            Title = "Fish: 0",
-            Desc = "Fish caught (updates while farming).",
-            Locked = true,
-            Callback = function() end
-        })
-
-        table.insert(_G.CoinFarmInfo.Buttons, coinsBtn)
-        table.insert(_G.CoinFarmInfo.Buttons, fishBtn)
-
-        -- updater coroutine to refresh the button titles/descs while CoinFarm.Enabled is true
-        task.spawn(function()
-            while true do
-                local coins = __getCoinsForUI()
-                local fish = _G.Overlay and (_G.Overlay.FishCaught or 0) or (_G.CoinFarmInfo.Fish or 0)
-                -- update text
-                pcall(function() coinsBtn:SetTitle("Coins: " .. tostring(coins)) end)
-                pcall(function() coinsBtn:SetDesc("Current coins: " .. tostring(coins)) end)
-                pcall(function() fishBtn:SetTitle("Fish: " .. tostring(fish)) end)
-                pcall(function() fishBtn:SetDesc("Fish caught: " .. tostring(fish)) end)
-                task.wait(0.5)
-            end
-        end)
-    end
-end)
-
--- =======[ End In-Tab Info ]========
-
