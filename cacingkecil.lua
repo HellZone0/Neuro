@@ -738,6 +738,295 @@ _G.ServerListAll = _G.ServerPage:Section({
     TextSize = 22,
     TextXAlignment = "Center"
 })
+-- =======[ Public Server List + Event Scanner ]========
+-- Adds buttons to fetch public servers and optionally teleport to scan for in-game events.
+
+_G.ServerEvents = _G.ServerEvents or {} -- cache: serverId -> {event1, event2, ...}
+_G.AutoScanOnJoin = _G.AutoScanOnJoin or false
+_G.LastServerList = _G.LastServerList or {}
+
+local function fetchPublicServers()
+    local http = game:GetService("HttpService")
+    local url = "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId) .. "/servers/Public?sortOrder=Asc&limit=100"
+    local success, res = pcall(function()
+        return game:HttpGet(url)
+    end)
+    if not success or not res then
+        NotifyError("Server List", "Failed to fetch server list.")
+        return nil
+    end
+    local data = {}
+    local ok, parsed = pcall(function() return http:JSONDecode(res) end)
+    if not ok or not parsed or not parsed.data then
+        NotifyError("Server List", "Invalid server list response.")
+        return nil
+    end
+    data = parsed.data
+    _G.LastServerList = data
+    return data
+end
+
+local function scanEventsInWorkspace()
+    -- Scans workspace for known event markers (menu rings / props) and returns a table of found events
+    local found = {}
+    local menuRings = workspace:FindFirstChild("!!! MENU RINGS") or workspace:FindFirstChild("MenuRings") or workspace:FindFirstChild("Menu Rings")
+    if menuRings then
+        local props = menuRings:FindFirstChild("Props") or menuRings
+        for _, child in ipairs(props:GetChildren()) do
+            if child:IsA("Model") then
+                table.insert(found, child.Name)
+            elseif child:IsA("BasePart") then
+                table.insert(found, child.Name)
+            end
+        end
+    end
+    -- Also check for common event names in workspace (BlackHole, MeteorRain, Worm, Shark, Megalodon)
+    local keywords = {"BlackHole", "MeteorRain", "Worm", "Shark", "Megalodon", "GhostWorm", "GhostShark"}
+    for _, kw in ipairs(keywords) do
+        if workspace:FindFirstChild(kw) then
+            table.insert(found, kw)
+        end
+    end
+    -- dedupe
+    local dedupe = {}
+    local unique = {}
+    for _, v in ipairs(found) do
+        if not dedupe[v] then
+            dedupe[v] = true
+            table.insert(unique, v)
+        end
+    end
+    return unique
+end
+
+-- When player joins (or teleports), optionally auto-scan for events and cache them
+game.Players.LocalPlayer.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Started then return end
+    -- After teleport completes, if AutoScanOnJoin set, run scan
+    task.delay(1, function()
+        if _G.AutoScanOnJoin then
+            local sid = tostring(game.JobId or "unknown")
+            local events = {}
+            local ok, res = pcall(function() events = scanEventsInWorkspace() end)
+            if ok and events and #events > 0 then
+                _G.ServerEvents[sid] = events
+                NotifySuccess("Server Scan", "Found events: " .. table.concat(events, ", "), 5)
+            else
+                NotifyInfo("Server Scan", "No events found on this server.", 4)
+            end
+            -- disable auto-scan after first run to avoid repeated scans
+            _G.AutoScanOnJoin = false
+        end
+    end)
+end)
+
+-- UI Buttons: Refresh list + populate
+_G.ServerListAll:Button({
+    Title = "Refresh Public Servers",
+    Desc = "Fetch up to 100 public servers for this game.",
+    Callback = function()
+        local list = fetchPublicServers()
+        if not list then return end
+
+        -- clear previous server buttons if any
+        for _, btn in ipairs(_G.ButtonList or {}) do
+            pcall(function() btn:Remove() end)
+        end
+        _G.ButtonList = {}
+
+        for _, server in ipairs(list) do
+            local id = server.id
+            local players = server.playing or 0
+            local maxp = server.maxPlayers or 0
+            local ping = server.ping or 0
+            local desc = "Players: " .. tostring(players) .. "/" .. tostring(maxp) .. "\nPing: " .. tostring(ping)
+            local button = _G.ServerListAll:Button({
+                Title = "Server: " .. tostring(id),
+                Desc = desc,
+                Callback = function()
+                    -- teleport to selected server
+                    pcall(function()
+                        NotifyInfo("Teleport", "Teleporting to server " .. tostring(id) .. "...", 3)
+                        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, id, game.Players.LocalPlayer)
+                    end)
+                end
+            })
+            -- Add a small secondary action: Scan Events (will set AutoScanOnJoin then teleport)
+            button:BindRightClick(function()
+                -- right-click action: teleport and auto-scan on join
+                pcall(function()
+                    _G.AutoScanOnJoin = true
+                    NotifyInfo("Auto-Scan", "Teleporting and will auto-scan events on arrival.", 3)
+                    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, id, game.Players.LocalPlayer)
+                end)
+            end)
+            table.insert(_G.ButtonList, button)
+        end
+        NotifySuccess("Server List", "Loaded " .. tostring(#list) .. " servers.", 3)
+    end
+})
+
+-- Add a button to show cached scan results
+_G.ServerListAll:Button({
+    Title = "Show Cached Server Events",
+    Desc = "Displays events found in servers you previously scanned.",
+    Callback = function()
+        local entries = {}
+        for sid, events in pairs(_G.ServerEvents) do
+            table.insert(entries, sid .. ": " .. table.concat(events, ", "))
+        end
+        if #entries == 0 then
+            NotifyInfo("Cached Events", "No cached server event data found.", 3)
+        else
+            NotifyInfo("Cached Events", table.concat(entries, "\n"), 8)
+        end
+    end
+})
+
+-- Toggle to enable auto-scan on next teleport (without choosing server button)
+_G.ServerListAll:Toggle({
+    Title = "Auto-Scan On Next Join",
+    Value = false,
+    Callback = function(state)
+        _G.AutoScanOnJoin = state
+        if state then
+            NotifyInfo("Auto-Scan", "Will scan for events on next server join.", 3)
+        else
+            NotifyWarning("Auto-Scan", "Disabled auto-scan on join.", 2)
+        end
+    end
+})
+-- =======[ End Public Server List + Event Scanner ]========
+
+-- =======[ Random Servers + Private Server Join ]========
+-- Quick fetch 10 random servers from last fetched list or refetch if empty.
+_G.RandomServerCache = _G.RandomServerCache or {}
+
+_G.ServerListAll:Button({
+    Title = "Show 10 Random Servers",
+    Desc = "Pick 10 random public servers (from last fetch or refresh).",
+    Callback = function()
+        local list = _G.LastServerList
+        if not list or #list == 0 then
+            list = fetchPublicServers()
+            if not list then return end
+        end
+
+        -- shuffle copy
+        local copy = {}
+        for i,v in ipairs(list) do table.insert(copy, v) end
+        for i = #copy, 2, -1 do
+            local j = math.random(1, i)
+            copy[i], copy[j] = copy[j], copy[i]
+        end
+
+        local pick = {}
+        for i = 1, math.min(10, #copy) do
+            table.insert(pick, copy[i])
+        end
+
+        -- clear old random cache buttons
+        if _G.RandomServerCache.Buttons then
+            for _, b in ipairs(_G.RandomServerCache.Buttons) do
+                pcall(function() b:Remove() end)
+            end
+        end
+        _G.RandomServerCache.Buttons = {}
+
+        for _, server in ipairs(pick) do
+            local id = server.id
+            local players = server.playing or 0
+            local maxp = server.maxPlayers or 0
+            local ping = server.ping or 0
+            local desc = "Players: " .. tostring(players) .. "/" .. tostring(maxp) .. "\nPing: " .. tostring(ping)
+            local button = _G.ServerListAll:Button({
+                Title = "Random: " .. tostring(id),
+                Desc = desc,
+                Callback = function()
+                    pcall(function()
+                        NotifyInfo("Teleport", "Teleporting to server " .. tostring(id) .. "...", 3)
+                        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, id, game.Players.LocalPlayer)
+                    end)
+                end
+            })
+            -- right-click to auto-scan like other buttons
+            button:BindRightClick(function()
+                pcall(function()
+                    _G.AutoScanOnJoin = true
+                    NotifyInfo("Auto-Scan", "Teleporting and will auto-scan events on arrival.", 3)
+                    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, id, game.Players.LocalPlayer)
+                end)
+            end)
+            table.insert(_G.RandomServerCache.Buttons, button)
+        end
+        NotifySuccess("Random Servers", "Displayed " .. tostring(#pick) .. " random servers.", 3)
+    end
+})
+
+-- Input field and button to join a private server (paste the private server link or id)
+local privateInput = ""
+_G.ServerListAll:Input({
+    Title = "Private Server Link / ID",
+    Value = "",
+    Placeholder = "Paste private server URL or ID here...",
+    Callback = function(text)
+        privateInput = tostring(text or "")
+    end
+})
+
+_G.ServerListAll:Button({
+    Title = "Join Private Server",
+    Desc = "Attempt to parse the input and join the private server instance.",
+    Callback = function()
+        local input = privateInput or ""
+        if input == "" then
+            NotifyWarning("Private Join", "No input provided.")
+            return
+        end
+
+        -- try to extract private server access code first (e.g., share?code=...)
+        local accessCode = string.match(input, "[cC]ode=([^&]+)")
+        if accessCode and accessCode ~= "" then
+            -- attempt TeleportToPrivateServer using accessCode
+            pcall(function()
+                NotifyInfo("Private Join", "Detected private server code. Attempting to join with access code...", 3)
+                game:GetService("TeleportService"):TeleportToPrivateServer(game.PlaceId, accessCode, game.Players.LocalPlayer)
+            end)
+            return
+        end
+
+        -- try to extract server id from common patterns
+        local sid = nil
+        -- try privateServerId=...
+        sid = string.match(input, "[Pp]rivate[Ss]erver[Ii]d=([^&]+)")
+        if not sid then sid = string.match(input, "[sS]erver[Ii]d=([^&]+)") end
+        if not sid then sid = string.match(input, "id=([^&]+)") end
+        if not sid then sid = string.match(input, "servers/([^/?]+)") end
+        if not sid then sid = string.match(input, "placeId%%3A([^&]+)") end
+        -- fallback: find last numeric sequence (>=5 digits)
+        if not sid then
+            for num in string.gmatch(input, "%d%d%d%d%d+") do
+                sid = num
+            end
+        end
+
+        if not sid or sid == "" then
+            NotifyError("Private Join", "Could not parse server id or code from input.")
+            return
+        end
+
+        -- attempt teleport by Place Instance ID if numeric-like
+        pcall(function()
+            NotifyInfo("Private Join", "Attempting to join server: " .. tostring(sid), 3)
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, tostring(sid), game.Players.LocalPlayer)
+        end)
+    end
+})
+
+-- =======[ End Random Servers + Private Server Join ]========
+
+
+
 
 _G.ShowServersButton = _G.ServerListAll:Button({
     Title = "Show Server List",
@@ -1324,23 +1613,7 @@ _G.FishSec:Button({
 -- =======[ END LEGIT UI ]========
 
 
--- =======[ Recast Mode Selector ]========
--- Options: "True-Legit" (no StopFishing, resume auto-click),
--- "Super-Instant" (direct remote re-cast, highest speed, risky),
--- "Fallback" (original behavior)
-_G.RecastMode = _G.RecastMode or "True-Legit"
 
-_G.FishSec:Dropdown({
-    Title = "Recast Mode",
-    Values = {"True-Legit", "Super-Instant", "Fallback"},
-    Multi = false,
-    Default = _G.RecastMode,
-    Callback = function(value)
-        _G.RecastMode = value
-        NotifyInfo("Recast Mode", "Selected mode: " .. tostring(value), 2)
-    end
-})
--- =======[ End Recast Mode Selector ]========
 
 
 
