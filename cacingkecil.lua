@@ -929,9 +929,38 @@ end)
 
 _G.REFishCaught.OnClientEvent:Connect(function(fishName, info)
     if FuncAutoFish.autofish5x then
+        -- stop any spam-finish threads
         _G.stopSpam()
         _G.StopFishing()
-        _G.RecastSpam()
+
+        -- Immediately attempt to cast again without added delay.
+        -- Use pcall to avoid errors if functions differ; prefer direct StartCast5X when available.
+        task.spawn(function()
+            pcall(function()
+                -- Ensure rod is equipped (best effort)
+                if _G.equipRemote then
+                    pcall(function() _G.equipRemote:FireServer(1) end)
+                end
+
+                -- small yield to allow server/client state to sync
+                task.wait(0)
+
+                if type(StartCast5X) == "function" then
+                    StartCast5X()
+                elseif type(_G.RecastSpam) == "function" then
+                    -- fallback to existing recast spam if StartCast5X not present
+                    _G.RecastSpam()
+                else
+                    -- final fallback: try charging and starting minigame directly
+                    if net and net["RF/ChargeFishingRod"] and net["RF/RequestFishingMinigameStarted"] then
+                        pcall(function()
+                            net["RF/ChargeFishingRod"]:InvokeServer(workspace:GetServerTimeNow())
+                            net["RF/RequestFishingMinigameStarted"]:InvokeServer(-1.25, 1.0, workspace:GetServerTimeNow())
+                        end)
+                    end
+                end
+            end)
+        end)
     end
 end)
 
