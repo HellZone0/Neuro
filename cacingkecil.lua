@@ -731,6 +731,9 @@ local function startCoinFarming()
     end)
 
     CoinFarm.Thread = task.spawn(function()
+        -- show overlay for coin farm
+        pcall(function() showOverlay() end)
+
         -- teleport to selected farm spot initially
         teleportToFarmSpot(CoinFarm.Location)
 
@@ -781,6 +784,8 @@ local function startCoinFarming()
 end
 local function stopCoinFarming()
     CoinFarm.Enabled = false
+    pcall(function() hideOverlay() end)
+
     if CoinFarm.Thread and coroutine.status(CoinFarm.Thread) ~= "dead" then
         task.cancel(CoinFarm.Thread)
     end
@@ -851,6 +856,14 @@ farmSection:Input({
     end
 })
 
+
+farmSection:Button({
+    Title = "Reset Fish Counter",
+    Callback = function()
+        resetFishCounter()
+        NotifyInfo("Coin Farm", "Fish counter reset to 0.", 2)
+    end
+})
 farmSection:Toggle({
     Title = "Enable Coin Farming",
     Value = false,
@@ -4945,3 +4958,129 @@ local gameAnimToggle = X5SpeedTab:Toggle({
 myConfig:Register("DisableGameAnimations", gameAnimToggle)
 
 print("✅ X5 Speed Tab Loaded!")
+
+
+
+
+
+-- =======[ Small Overlay: Coin & Fish Monitor (Shown only during Coin Farm) ]========
+-- This creates showOverlay() and hideOverlay() functions and a reset counter helper.
+
+_G.Overlay = _G.Overlay or {}
+_G.Overlay.FishCaught = _G.Overlay.FishCaught or 0
+_G.Overlay.Instance = _G.Overlay.Instance or nil
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local function createOverlayGui()
+    if not LocalPlayer then return nil end
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    -- create ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "HZ_Overlay"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = playerGui
+
+    local frame = Instance.new("Frame")
+    frame.Name = "OverlayFrame"
+    frame.Size = UDim2.new(0, 200, 0, 70)
+    frame.Position = UDim2.new(0.01, 0, 0.02, 0)
+    frame.BackgroundTransparency = 0.25
+    frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 10
+    frame.Parent = screenGui
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, 0, 0, 20)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "Coin Farm Monitor"
+    title.TextColor3 = Color3.fromRGB(255,255,255)
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 14
+    title.Parent = frame
+
+    local coinsLabel = Instance.new("TextLabel")
+    coinsLabel.Name = "CoinsLabel"
+    coinsLabel.Size = UDim2.new(1, -8, 0, 20)
+    coinsLabel.Position = UDim2.new(0, 4, 0, 22)
+    coinsLabel.BackgroundTransparency = 1
+    coinsLabel.Text = "Coins: 0"
+    coinsLabel.TextColor3 = Color3.fromRGB(200,200,200)
+    coinsLabel.Font = Enum.Font.SourceSans
+    coinsLabel.TextSize = 14
+    coinsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    coinsLabel.Parent = frame
+
+    local fishLabel = Instance.new("TextLabel")
+    fishLabel.Name = "FishLabel"
+    fishLabel.Size = UDim2.new(1, -8, 0, 20)
+    fishLabel.Position = UDim2.new(0, 4, 0, 44)
+    fishLabel.BackgroundTransparency = 1
+    fishLabel.Text = "Fish: 0"
+    fishLabel.TextColor3 = Color3.fromRGB(200,200,200)
+    fishLabel.Font = Enum.Font.SourceSans
+    fishLabel.TextSize = 14
+    fishLabel.TextXAlignment = Enum.TextXAlignment.Left
+    fishLabel.Parent = frame
+
+    -- return the gui container and label refs
+    return {
+        gui = screenGui,
+        coinsLabel = coinsLabel,
+        fishLabel = fishLabel
+    }
+end
+
+local function showOverlay()
+    if _G.Overlay.Instance and _G.Overlay.Instance.gui then return end
+    local inst = createOverlayGui()
+    if not inst then return end
+    _G.Overlay.Instance = inst
+    -- update loop
+    inst._running = true
+    task.spawn(function()
+        while inst._running and _G.Overlay.Instance == inst do
+            -- get coins
+            local coins = 0
+            local stats = LocalPlayer:FindFirstChild("leaderstats")
+            if stats and stats:FindFirstChild("Coins") then
+                coins = tonumber(stats.Coins.Value) or 0
+            end
+            pcall(function() inst.coinsLabel.Text = "Coins: " .. tostring(coins) end)
+            pcall(function() inst.fishLabel.Text = "Fish: " .. tostring(_G.Overlay.FishCaught or 0) end)
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function hideOverlay()
+    if not _G.Overlay.Instance then return end
+    local inst = _G.Overlay.Instance
+    inst._running = false
+    pcall(function() inst.gui:Destroy() end)
+    _G.Overlay.Instance = nil
+end
+
+local function resetFishCounter()
+    _G.Overlay.FishCaught = 0
+    if _G.Overlay.Instance and _G.Overlay.Instance.fishLabel then
+        pcall(function() _G.Overlay.Instance.fishLabel.Text = "Fish: 0" end)
+    end
+end
+
+-- connect to fish caught to increment counter even if overlay currently hidden
+pcall(function()
+    if _G.REFishCaught and _G.REFishCaught.OnClientEvent then
+        _G.REFishCaught.OnClientEvent:Connect(function(fishName, info)
+            _G.Overlay.FishCaught = (_G.Overlay.FishCaught or 0) + 1
+        end)
+    end
+end)
+
+-- =======[ End Overlay ]========
+
+
