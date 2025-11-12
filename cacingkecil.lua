@@ -927,6 +927,88 @@ FuncAutoFish.REReplicateTextEffect.OnClientEvent:Connect(function(data)
     end
 end)
 
+
+_G.REFishCaught.OnClientEvent:Connect(function(fishName, info)
+    if not FuncAutoFish.autofish5x then return end
+
+    -- stop any spam finish threads but do not necessarily StopFishing depending on mode
+    pcall(function() _G.stopSpam() end)
+
+    local mode = _G.RecastMode or "True-Legit"
+
+    if mode == "True-Legit" then
+        -- True-Legit: do not call StopFishing; immediately resume auto-click
+        pcall(function()
+            if _G.equipRemote then pcall(function() _G.equipRemote:FireServer(1) end) end
+            if _G.LegitFishing and _G.LegitFishing.Enabled then
+                -- ensure ToggleAutoClick is enabled
+                if type(_G.ToggleAutoClick) == "function" then
+                    _G.ToggleAutoClick(true)
+                else
+                    -- start our own click thread if missing
+                    _G.LegitFishing.Enabled = true
+                    if not (_G.LegitFishing.Thread and coroutine.status(_G.LegitFishing.Thread) ~= "dead") then
+                        _G.LegitFishing.Thread = task.spawn(function()
+                            while _G.LegitFishing.Enabled do
+                                pcall(function()
+                                    if type(_G.performClick) == "function" then
+                                        _G.performClick()
+                                    end
+                                end)
+                                local base = tonumber(_G.LegitFishing.ClickInterval or _G.SPEED_LEGIT or 0.05)
+                                local jitter = (math.random() * 0.2 - 0.1) * base
+                                task.wait(math.max(0, base + jitter))
+                            end
+                        end)
+                    end
+                end
+            else
+                -- Legit not enabled: fallback to StartCast5X if available
+                if type(StartCast5X) == "function" then
+                    StartCast5X()
+                elseif type(_G.RecastSpam) == "function" then
+                    _G.RecastSpam()
+                end
+            end
+        end)
+    elseif mode == "Super-Instant" then
+        -- Super-Instant: aggressive direct remote calls
+        task.spawn(function()
+            pcall(function()
+                if _G.equipRemote then pcall(function() _G.equipRemote:FireServer(1) end) end
+                if net and net["RF/ChargeFishingRod"] and net["RF/RequestFishingMinigameStarted"] then
+                    net["RF/ChargeFishingRod"]:InvokeServer(workspace:GetServerTimeNow())
+                    task.wait(0)
+                    net["RF/RequestFishingMinigameStarted"]:InvokeServer(-1.25, 1.0, workspace:GetServerTimeNow())
+                end
+                if finishRemote then
+                    task.wait(0)
+                    finishRemote:FireServer()
+                end
+            end)
+        end)
+    else
+        -- Fallback: original behavior (attempt RecastSpam)
+        task.spawn(function()
+            pcall(function()
+                if _G.equipRemote then pcall(function() _G.equipRemote:FireServer(1) end) end
+                if type(_G.RecastSpam) == "function" then
+                    _G.RecastSpam()
+                elseif type(StartCast5X) == "function" then
+                    StartCast5X()
+                else
+                    -- direct remote attempt
+                    if net and net["RF/ChargeFishingRod"] and net["RF/RequestFishingMinigameStarted"] then
+                        pcall(function()
+                            net["RF/ChargeFishingRod"]:InvokeServer(workspace:GetServerTimeNow())
+                            net["RF/RequestFishingMinigameStarted"]:InvokeServer(-1.25, 1.0, workspace:GetServerTimeNow())
+                        end)
+                    end
+                end
+            end)
+        end)
+    end
+end)
 _G.REFishCaught.OnClientEvent:Connect(function(fishName, info)
     if FuncAutoFish.autofish5x then
         -- stop any spam-finish threads
@@ -1240,6 +1322,27 @@ _G.FishSec:Button({
     end
 })
 -- =======[ END LEGIT UI ]========
+
+
+-- =======[ Recast Mode Selector ]========
+-- Options: "True-Legit" (no StopFishing, resume auto-click),
+-- "Super-Instant" (direct remote re-cast, highest speed, risky),
+-- "Fallback" (original behavior)
+_G.RecastMode = _G.RecastMode or "True-Legit"
+
+_G.FishSec:Dropdown({
+    Title = "Recast Mode",
+    Values = {"True-Legit", "Super-Instant", "Fallback"},
+    Multi = false,
+    Default = _G.RecastMode,
+    Callback = function(value)
+        _G.RecastMode = value
+        NotifyInfo("Recast Mode", "Selected mode: " .. tostring(value), 2)
+    end
+})
+-- =======[ End Recast Mode Selector ]========
+
+
 
 _G.FishSec:Space()
 
