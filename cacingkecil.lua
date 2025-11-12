@@ -704,7 +704,6 @@ Game Script : Fish it
 Version : Lattest Update
 Framework : Wind Ui
 free script (not sell) 
-]]
 })
 
 Home:Space()
@@ -2729,7 +2728,6 @@ TUTORIAL FOR DOUBLE ENCHANT
 3. Click "Double Enchant Rod" to do Double Enchant, and don't forget to place the stone in slot 5
 
 Good Luck!
-]]
 })
 
 _G.ReplicatedStorage = game:GetService("ReplicatedStorage")
