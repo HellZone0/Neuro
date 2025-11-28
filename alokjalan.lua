@@ -1490,10 +1490,11 @@ Modules["ui/library"] = function()
     
     local Library = {}
     
-    -- Neuro Hub Logo Asset ID
+    -- Zivi Hub Logo Asset ID
     -- Using Chloe's original logo asset
-    Library.LogoAssetId = "132435516080103"  -- Chloe logo asset ID
+    Library.LogoAssetId = "119262194774700"  -- Chloe logo asset ID
     
+    -- Discord Dark Theme Colors
     -- Discord Dark Theme Colors
     Library.Theme = {
         -- Primary colors (Discord dark mode)
@@ -1518,6 +1519,7 @@ Modules["ui/library"] = function()
         InteractiveActive = Color3.fromRGB(0, 0, 0)
     }
     
+    
     --[[
         Load external UI library
         @return table - UI library object
@@ -1536,7 +1538,7 @@ Modules["ui/library"] = function()
     end
     
     --[[
-        Create main window with Neuro Hub branding
+        Create main window with Zivi Hub branding
         @return table - Window object
     ]]
     function Library.createWindow()
@@ -3869,7 +3871,7 @@ Modules["ui/tabs/misc-tab"] = function()
             Title = "Neuro Hub",
             Content = [[
     Version: 2.0.0 BETA
-    Developer: Zivi Team
+    Developer: Neuro Team
     
     Features:
     - Instant Fishing
